@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { isAppwriteConfigured } from "@/constants/appwrite";
+import { getSchemaSetupMessage, isSchemaSetupError } from "@/lib/schema-errors";
 import {
   createGoal as createGoalDoc,
   createNote as createNoteDoc,
@@ -43,6 +44,7 @@ type AppState = {
   xp: number;
   level: number;
   authError: string | null;
+  schemaError: string | null;
   clearAuthError: () => void;
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
@@ -85,10 +87,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [xp, setXp] = useState(0);
   const [level, setLevel] = useState(1);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
 
   const isConfigured = isAppwriteConfigured();
 
-  const clearAuthError = useCallback(() => setAuthError(null), []);
+  const clearAuthError = useCallback(() => {
+    setAuthError(null);
+    setSchemaError(null);
+  }, []);
 
   const loadUserData = useCallback(async (userId: string) => {
     try {
@@ -102,7 +108,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         data.stats,
       );
     } catch (error) {
-      console.warn("Failed to load user data:", getAppwriteErrorMessage(error));
+      const message = getAppwriteErrorMessage(error);
+      console.warn("Failed to load user data:", message);
+      if (isSchemaSetupError(message)) {
+        setSchemaError(getSchemaSetupMessage());
+      }
       setTasks([]);
       setGoals([]);
       setNotes([]);
@@ -284,6 +294,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       xp,
       level,
       authError,
+      schemaError,
       clearAuthError,
       login,
       signup,
@@ -312,6 +323,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       xp,
       level,
       authError,
+      schemaError,
       clearAuthError,
       login,
       signup,

@@ -19,7 +19,8 @@ function formatDate() {
 }
 
 export default function HomeScreen() {
-  const { user, tasks, goals, toggleTask, focusMinutesToday, notifications } = useApp();
+  const { user, tasks, goals, toggleTask, focusMinutesToday, notifications, schemaError } =
+    useApp();
 
   const todayTasks = tasks.filter((t) => t.dueDate === TODAY && !t.completed);
   const completedToday = tasks.filter((t) => t.dueDate === TODAY && t.completed).length;
@@ -43,6 +44,13 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
+        {schemaError ? (
+          <View style={styles.schemaBanner}>
+            <Ionicons name="warning-outline" size={20} color={Colors.warning} />
+            <Text style={styles.schemaText}>{schemaError}</Text>
+          </View>
+        ) : null}
+
         <SummaryCard
           tasksDue={todayTasks.length + completedToday}
           completed={completedToday}
@@ -147,6 +155,20 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: 120,
     gap: Spacing.xl,
+  },
+  schemaBanner: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    backgroundColor: "#FEF3C7",
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    alignItems: "flex-start",
+  },
+  schemaText: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    color: "#92400E",
+    lineHeight: 18,
   },
   section: {
     gap: Spacing.sm,

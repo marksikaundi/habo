@@ -37,9 +37,28 @@ This must match the deep link the app sends when requesting a password reset. Us
 
 ## 4. Create the database
 
-Create a database with ID: `habora` (or use another ID and set `EXPO_PUBLIC_APPWRITE_DATABASE_ID`).
+Create a database in Appwrite Console (or use your existing database ID in `.env`).
 
-### Collection: `tasks`
+Create these **empty collections** (IDs must match `.env`):
+`tasks`, `goals`, `notes`, `notifications`, `user_stats`
+
+### Automated schema setup (recommended)
+
+The app queries by `userId` — each collection needs that attribute and an index.
+
+1. In Appwrite Console → **API Keys** → Create key with **`databases.write`** scope
+2. Add to `.env`:
+   ```
+   APPWRITE_API_KEY=your_api_key_here
+   ```
+3. Run from project root:
+   ```bash
+   npm run appwrite:setup
+   ```
+
+This creates all attributes, indexes, and permissions automatically.
+
+### Manual schema (alternative)
 
 | Attribute | Type | Required | Notes |
 |-----------|------|----------|-------|
