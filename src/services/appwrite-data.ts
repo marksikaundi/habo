@@ -193,3 +193,30 @@ export async function markNotificationAsRead(notificationId: string): Promise<vo
     data: { read: true },
   });
 }
+
+export async function addFocusMinutes(
+  userId: string,
+  seconds: number,
+): Promise<UserStats> {
+  const stats = await ensureUserStats(userId);
+  if (seconds < 30) {
+    return stats;
+  }
+
+  const additionalMinutes = Math.max(1, Math.round(seconds / 60));
+  const focusMinutesToday = stats.focusMinutesToday + additionalMinutes;
+  const xp = stats.xp + additionalMinutes * 2;
+
+  if (!stats.statsDocId) {
+    return { ...stats, focusMinutesToday, xp };
+  }
+
+  await databases.updateDocument<UserStatsDocument>({
+    databaseId,
+    collectionId: collections.userStats,
+    documentId: stats.statsDocId,
+    data: { focusMinutesToday, xp },
+  });
+
+  return { ...stats, focusMinutesToday, xp };
+}

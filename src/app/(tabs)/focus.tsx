@@ -1,102 +1,144 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { FocusTimerRing } from "@/components/FocusTimerRing";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { useApp } from "@/context/AppContext";
-import { Colors, FontSize, Spacing } from "@/constants/theme";
+import { Colors, FontSize, Radius, Shadow, Spacing } from "@/constants/theme";
 
-const DEFAULT_SECONDS = 25 * 60;
+const RING_REFERENCE_SECONDS = 25 * 60;
+const POMODOROS_PER_SET = 4;
+
+function formatElapsed(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+}
 
 export default function FocusScreen() {
-  const { focusStreak, tasks } = useApp();
-  const [seconds, setSeconds] = useState(DEFAULT_SECONDS);
-  const [running, setRunning] = useState(false);
-  const [isBreak, setIsBreak] = useState(false);
+  const insets = useSafeAreaInsets();
+  const { focusStreak, tasks, saveFocusSession } = useApp();
 
-  const linkedTask = tasks.find((t) => !t.completed);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [savedSessions, setSavedSessions] = useState(0);
+  const elapsedRef = useRef(0);
+
+  const activeTask = tasks.find((t) => !t.completed);
+
+  useEffect(() => {
+    elapsedRef.current = elapsedSeconds;
+  }, [elapsedSeconds]);
 
   useEffect(() => {
     if (!running) return;
+
     const interval = setInterval(() => {
-      setSeconds((s) => {
-        if (s <= 1) {
-          setRunning(false);
-          setIsBreak((b) => !b);
-          return isBreak ? DEFAULT_SECONDS : 5 * 60;
-        }
-        return s - 1;
-      });
+      setElapsedSeconds((s) => s + 1);
     }, 1000);
+
     return () => clearInterval(interval);
-  }, [running, isBreak]);
+  }, [running]);
 
-  const total = isBreak ? 5 * 60 : DEFAULT_SECONDS;
-  const elapsed = 1 - seconds / total;
+  const resetTimer = useCallback(() => {
+    setRunning(false);
+    setElapsedSeconds(0);
+  }, []);
 
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  const timeStr = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  const handleSaveAndReset = useCallback(async () => {
+    const seconds = elapsedRef.current;
+    if (seconds >= 30) {
+      await saveFocusSession(seconds);
+      setSavedSessions((n) => Math.min(n + 1, POMODOROS_PER_SET));
+    }
+    resetTimer();
+  }, [resetTimer, saveFocusSession]);
+
+  const handleSkipBack = () => {
+    if (elapsedSeconds > 0) {
+      Alert.alert("Reset timer?", "This will discard the current session without saving.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Reset", style: "destructive", onPress: resetTimer },
+      ]);
+      return;
+    }
+    resetTimer();
+  };
+
+  const handleSkipForward = () => {
+    if (elapsedSeconds < 30) {
+      Alert.alert("Session too short", "Focus for at least 30 seconds before saving.");
+      return;
+    }
+    void handleSaveAndReset();
+  };
+
+  const ringProgress =
+    elapsedSeconds === 0 ? 0 : (elapsedSeconds % RING_REFERENCE_SECONDS) / RING_REFERENCE_SECONDS;
+
+  const statusText = running
+    ? "Time to focus!"
+    : elapsedSeconds > 0
+      ? "Paused"
+      : "Ready to focus";
+
+  const currentPomodoro = Math.min(
+    savedSessions + (elapsedSeconds > 0 ? 1 : 0),
+    POMODOROS_PER_SET,
+  );
 
   return (
-    <View style={[styles.container, running && styles.dimmed]}>
-      <ScreenHeader title="Focus Mode" rightIcon="settings-outline" transparent />
+    <View style={styles.container}>
+      <ScreenHeader
+        title="Focus Mode"
+        rightIcon="settings-outline"
+        onRightPress={() => router.push("/(tabs)/settings")}
+      />
 
-      <View style={styles.content}>
-        {linkedTask ? (
-          <View style={styles.linkedTask}>
-            <Ionicons name="link" size={14} color={Colors.primary} />
-            <Text style={styles.linkedTaskText} numberOfLines={1}>
-              {linkedTask.title}
+      <View style={[styles.content, { paddingBottom: insets.bottom + 100 }]}>
+        {activeTask ? (
+          <View style={styles.taskInfo}>
+            <Text style={styles.taskTitle} numberOfLines={1}>
+              {activeTask.title}
             </Text>
+            <Text style={styles.taskCategory}>{activeTask.category}</Text>
           </View>
-        ) : null}
-
-        <Text style={styles.modeLabel}>{isBreak ? "Break Time" : "Focus Session"}</Text>
-
-        <View style={styles.timerContainer}>
-          <View style={styles.ringOuter}>
-            <View
-              style={[
-                styles.ringProgress,
-                {
-                  borderColor: isBreak ? Colors.success : Colors.primary,
-                  borderTopColor: elapsed > 0.25 ? (isBreak ? Colors.success : Colors.primary) : Colors.borderLight,
-                  borderRightColor: elapsed > 0.5 ? (isBreak ? Colors.success : Colors.primary) : Colors.borderLight,
-                  borderBottomColor: elapsed > 0.75 ? (isBreak ? Colors.success : Colors.primary) : Colors.borderLight,
-                  borderLeftColor: elapsed > 0 ? (isBreak ? Colors.success : Colors.primary) : Colors.borderLight,
-                },
-              ]}
-            />
-            <View style={styles.ringInner}>
-              <Text style={styles.timer}>{timeStr}</Text>
-            </View>
+        ) : (
+          <View style={styles.taskInfo}>
+            <Text style={styles.taskTitle}>Free Focus</Text>
+            <Text style={styles.taskCategory}>No task linked</Text>
           </View>
-        </View>
+        )}
+
+        <FocusTimerRing progress={ringProgress}>
+          <Text style={styles.timer}>{formatElapsed(elapsedSeconds)}</Text>
+          <Text style={styles.status}>{statusText}</Text>
+        </FocusTimerRing>
+
+        <Text style={styles.pomodoroCount}>
+          {currentPomodoro}/{POMODOROS_PER_SET} Pomodoros
+        </Text>
 
         <View style={styles.controls}>
-          <Pressable
-            onPress={() => setSeconds(isBreak ? 5 * 60 : DEFAULT_SECONDS)}
-            style={styles.controlBtn}
-          >
+          <Pressable onPress={handleSkipBack} style={styles.controlBtn} hitSlop={8}>
             <Ionicons name="play-skip-back" size={28} color={Colors.textSecondary} />
           </Pressable>
 
           <Pressable
-            onPress={() => setRunning(!running)}
-            style={[styles.playBtn, running && styles.playBtnActive]}
+            onPress={() => setRunning((r) => !r)}
+            style={({ pressed }) => [
+              styles.playBtn,
+              running && styles.playBtnActive,
+              pressed && { opacity: 0.92 },
+            ]}
           >
-            <Ionicons name={running ? "pause" : "play"} size={36} color="#fff" />
+            <Ionicons name={running ? "pause" : "play"} size={32} color="#fff" />
           </Pressable>
 
-          <Pressable
-            onPress={() => {
-              setRunning(false);
-              setIsBreak(!isBreak);
-              setSeconds(isBreak ? DEFAULT_SECONDS : 5 * 60);
-            }}
-            style={styles.controlBtn}
-          >
+          <Pressable onPress={handleSkipForward} style={styles.controlBtn} hitSlop={8}>
             <Ionicons name="play-skip-forward" size={28} color={Colors.textSecondary} />
           </Pressable>
         </View>
@@ -114,70 +156,51 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  dimmed: {
-    backgroundColor: "#F0EDF8",
-  },
   content: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingBottom: 100,
-  },
-  linkedTask: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-    backgroundColor: Colors.primaryMuted,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: 20,
-    marginBottom: Spacing.xl,
-    maxWidth: "80%",
+    gap: Spacing.xl,
   },
-  linkedTaskText: {
-    fontSize: FontSize.sm,
-    color: Colors.primary,
-    fontWeight: "500",
+  taskInfo: {
+    alignItems: "center",
+    gap: 4,
+    marginBottom: Spacing.sm,
   },
-  modeLabel: {
+  taskTitle: {
+    fontSize: FontSize.xl,
+    fontWeight: "700",
+    color: Colors.text,
+    textAlign: "center",
+  },
+  taskCategory: {
     fontSize: FontSize.md,
     color: Colors.textSecondary,
-    marginBottom: Spacing.xl,
-  },
-  timerContainer: {
-    marginBottom: Spacing.xxxl,
-  },
-  ringOuter: {
-    width: 260,
-    height: 260,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ringProgress: {
-    position: "absolute",
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    borderWidth: 8,
-  },
-  ringInner: {
-    width: 230,
-    height: 230,
-    borderRadius: 115,
-    backgroundColor: Colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
   },
   timer: {
-    fontSize: 48,
+    fontSize: 52,
     fontWeight: "300",
     color: Colors.text,
-    letterSpacing: 2,
+    letterSpacing: 1,
+    fontVariant: ["tabular-nums"],
+  },
+  status: {
+    fontSize: FontSize.md,
+    color: Colors.textSecondary,
+    marginTop: Spacing.sm,
+  },
+  pomodoroCount: {
+    fontSize: FontSize.md,
+    fontWeight: "500",
+    color: Colors.textSecondary,
+    marginTop: -Spacing.sm,
   },
   controls: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xxxl,
+    marginTop: Spacing.md,
   },
   controlBtn: {
     width: 48,
@@ -186,31 +209,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   playBtn: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: Colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
+    ...Shadow.md,
   },
   playBtnActive: {
     backgroundColor: Colors.primaryDark,
   },
   streak: {
-    marginTop: Spacing.xxxl,
-    paddingHorizontal: Spacing.xl,
+    marginTop: Spacing.lg,
+    paddingHorizontal: Spacing.xxl,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.surface,
-    borderRadius: 20,
+    backgroundColor: Colors.borderLight,
+    borderRadius: Radius.full,
   },
   streakText: {
     fontSize: FontSize.md,
     fontWeight: "600",
-    color: Colors.streak,
+    color: Colors.text,
   },
 });

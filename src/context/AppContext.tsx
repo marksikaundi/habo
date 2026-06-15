@@ -15,6 +15,7 @@ import {
   createNote as createNoteDoc,
   createTask as createTaskDoc,
   fetchUserData,
+  addFocusMinutes,
   markNotificationAsRead as markNotificationReadDoc,
   updateTaskCompleted,
   type UserStats,
@@ -58,6 +59,7 @@ type AppState = {
   addNote: (note: Omit<Note, "id" | "createdAt">) => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
   refreshData: () => Promise<void>;
+  saveFocusSession: (seconds: number) => Promise<void>;
 };
 
 const AppContext = createContext<AppState | null>(null);
@@ -279,6 +281,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const saveFocusSession = useCallback(
+    async (seconds: number) => {
+      if (!user || seconds < 30) return;
+
+      try {
+        const updated = await addFocusMinutes(user.id, seconds);
+        setFocusMinutesToday(updated.focusMinutesToday);
+        setXp(updated.xp);
+      } catch (error) {
+        console.warn("Failed to save focus session:", getAppwriteErrorMessage(error));
+      }
+    },
+    [user],
+  );
+
   const value = useMemo<AppState>(
     () => ({
       isLoading,
@@ -308,6 +325,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addNote,
       markNotificationRead,
       refreshData,
+      saveFocusSession,
     }),
     [
       isLoading,
@@ -337,6 +355,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addNote,
       markNotificationRead,
       refreshData,
+      saveFocusSession,
     ],
   );
 
