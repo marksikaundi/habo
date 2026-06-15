@@ -1,55 +1,90 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { useApp } from "@/context/AppContext";
-import { getPriorityColor } from "@/context/AppContext";
-import { Colors, FontSize, Radius, Spacing } from "@/constants/theme";
+import {
+  formatDayHeader,
+  formatHourLabel,
+  formatMonthYear,
+  formatWeekdayShort,
+  getTimelineHours,
+  getWeekDays,
+  isSameDay,
+  parseTimeToHour,
+  toLocalIso,
+} from "@/lib/calendar-utils";
+import { Colors, FontSize, Radius, Shadow, Spacing } from "@/constants/theme";
+import type { Task } from "@/types";
 
-const HOURS = Array.from({ length: 10 }, (_, i) => i + 9);
-const WEEK_DAYS = [
-  { label: "Mon", date: 20 },
-  { label: "Tue", date: 21 },
-  { label: "Wed", date: 22 },
-  { label: "Thu", date: 23 },
-  { label: "Fri", date: 24 },
-  { label: "Sat", date: 25 },
-  { label: "Sun", date: 26 },
-];
+function getCategoryStyle(category: string) {
+  const normalized = category.toLowerCase();
+  if (normalized === "work") {
+    return {
+      colors: ["#F3EFFE", "#EDE9FE"] as const,
+      borderColor: "#DDD6FE",
+    };
+  }
+  if (normalized === "personal") {
+    return {
+      colors: ["#ECFDF5", "#D1FAE5"] as const,
+      borderColor: "#A7F3D0",
+    };
+  }
+  return {
+    colors: ["#F9FAFB", "#F3F4F6"] as const,
+    borderColor: Colors.border,
+  };
+}
 
-const VIEWS = ["Day", "Week", "Month"] as const;
+function tasksForHour(tasks: Task[], hour: number): Task[] {
+  return tasks.filter((task) => {
+    if (!task.dueTime) return false;
+    return parseTimeToHour(task.dueTime) === hour;
+  });
+}
 
 export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const { tasks } = useApp();
-  const [selectedDay, setSelectedDay] = useState(21);
-  const [view, setView] = useState<(typeof VIEWS)[number]>("Week");
+  const today = useMemo(() => new Date(), []);
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
 
-  const scheduledTasks = tasks.filter(
-    (t) => t.dueDate === `2024-05-${selectedDay}` && t.dueTime && !t.completed,
+  const weekDays = useMemo(() => getWeekDays(selectedDate), [selectedDate]);
+  const selectedIso = toLocalIso(selectedDate);
+  const timelineHours = getTimelineHours();
+
+  const dayTasks = useMemo(
+    () =>
+      tasks
+        .filter((t) => t.dueDate === selectedIso && t.dueTime && !t.completed)
+        .sort((a, b) => (a.dueTime ?? "").localeCompare(b.dueTime ?? "")),
+    [tasks, selectedIso],
   );
+
+  const todayNumber = today.getDate();
 
   return (
     <View style={styles.container}>
       <ScreenHeader
-        title="May 2024"
-        rightIcon="calendar"
+        title={formatMonthYear(selectedDate)}
+        leftIcon="menu"
+        onLeftPress={() => router.push("/(tabs)/settings")}
         rightElement={
-          <View style={styles.viewToggle}>
-            {VIEWS.map((v) => (
-              <Pressable
-                key={v}
-                onPress={() => setView(v)}
-                style={[styles.viewBtn, view === v && styles.viewBtnActive]}
-              >
-                <Text style={[styles.viewBtnText, view === v && styles.viewBtnTextActive]}>
-                  {v}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <Pressable
+            onPress={() => setSelectedDate(new Date())}
+            style={styles.calendarIconBtn}
+            hitSlop={8}
+          >
+            <Ionicons name="calendar-outline" size={24} color={Colors.text} />
+            <View style={styles.calendarBadge}>
+              <Text style={styles.calendarBadgeText}>{todayNumber}</Text>
+            </View>
+          </Pressable>
         }
       />
 
@@ -59,64 +94,106 @@ export default function CalendarScreen() {
         style={styles.weekPicker}
         contentContainerStyle={styles.weekPickerContent}
       >
-        {WEEK_DAYS.map((day) => (
-          <Pressable
-            key={day.date}
-            onPress={() => setSelectedDay(day.date)}
-            style={[styles.dayPill, selectedDay === day.date && styles.dayPillActive]}
-          >
-            <Text
-              style={[styles.dayPillLabel, selectedDay === day.date && styles.dayPillLabelActive]}
+        {weekDays.map((day) => {
+          const selected = isSameDay(day, selectedDate);
+          const isToday = isSameDay(day, today);
+
+          return (
+            <Pressable
+              key={toLocalIso(day)}
+              onPress={() => setSelectedDate(day)}
+              style={styles.dayItem}
             >
-              {day.label}
-            </Text>
-            <Text
-              style={[styles.dayPillDate, selectedDay === day.date && styles.dayPillDateActive]}
-            >
-              {day.date}
-            </Text>
-          </Pressable>
-        ))}
+              <Text
+                style={[
+                  styles.dayLabel,
+                  selected && styles.dayLabelActive,
+                  isToday && !selected && styles.dayLabelToday,
+                ]}
+              >
+                {formatWeekdayShort(day)}
+              </Text>
+              <View style={[styles.dayCircle, selected && styles.dayCircleActive]}>
+                <Text style={[styles.dayNumber, selected && styles.dayNumberActive]}>
+                  {day.getDate()}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })}
       </ScrollView>
+
+      <View style={styles.divider} />
+
+      <Text style={styles.dayHeader}>{formatDayHeader(selectedDate)}</Text>
 
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.timeGrid}>
-          {HOURS.map((hour) => {
-            const hourTasks = scheduledTasks.filter((t) => {
-              const time = t.dueTime ?? "";
-              const h = parseInt(time.split(":")[0] ?? "0", 10);
-              const isPM = time.includes("PM");
-              const hour24 = isPM && h !== 12 ? h + 12 : h;
-              return hour24 === hour;
-            });
+        <View style={styles.timeline}>
+          {timelineHours.map((hour, index) => {
+            const hourTasks = tasksForHour(dayTasks, hour);
+            const isLast = index === timelineHours.length - 1;
 
             return (
               <View key={hour} style={styles.timeRow}>
-                <Text style={styles.timeLabel}>
-                  {hour > 12 ? hour - 12 : hour} {hour >= 12 ? "PM" : "AM"}
-                </Text>
-                <View style={styles.timeSlot}>
-                  {hourTasks.map((task) => (
-                    <View
-                      key={task.id}
-                      style={[
-                        styles.taskBlock,
-                        { borderLeftColor: getPriorityColor(task.priority) },
-                      ]}
-                    >
-                      <Text style={styles.taskBlockTitle} numberOfLines={1}>
-                        {task.title}
-                      </Text>
-                      <Text style={styles.taskBlockTime}>{task.dueTime}</Text>
-                    </View>
-                  ))}
+                <Text style={styles.timeLabel}>{formatHourLabel(hour)}</Text>
+
+                <View style={styles.timelineTrack}>
+                  <View style={[styles.timelineLine, isLast && styles.timelineLineLast]} />
+                </View>
+
+                <View style={styles.slotContent}>
+                  {hourTasks.length > 0 ? (
+                    hourTasks.map((task) => {
+                      const catStyle = getCategoryStyle(task.category);
+                      return (
+                        <Pressable
+                          key={task.id}
+                          style={({ pressed }) => [
+                            styles.taskCard,
+                            { borderColor: catStyle.borderColor },
+                            pressed && { opacity: 0.92 },
+                          ]}
+                        >
+                          <LinearGradient
+                            colors={catStyle.colors}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.taskCardGradient}
+                          >
+                            <View style={styles.taskCardBody}>
+                              <View style={styles.taskCardText}>
+                                <Text style={styles.taskTitle} numberOfLines={1}>
+                                  {task.title}
+                                </Text>
+                                <Text style={styles.taskCategory}>{task.category}</Text>
+                              </View>
+                              <Ionicons
+                                name="chevron-forward"
+                                size={16}
+                                color={Colors.textMuted}
+                              />
+                            </View>
+                          </LinearGradient>
+                        </Pressable>
+                      );
+                    })
+                  ) : (
+                    <View style={styles.emptySlot} />
+                  )}
                 </View>
               </View>
             );
           })}
+
+          {dayTasks.length === 0 ? (
+            <View style={styles.emptyDay}>
+              <Ionicons name="calendar-outline" size={40} color={Colors.textMuted} />
+              <Text style={styles.emptyDayText}>No scheduled tasks for this day</Text>
+            </View>
+          ) : null}
         </View>
       </ScrollView>
     </View>
@@ -128,101 +205,161 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  viewToggle: {
-    flexDirection: "row",
-    backgroundColor: Colors.borderLight,
-    borderRadius: Radius.sm,
-    padding: 2,
+  calendarIconBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  viewBtn: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: Radius.sm - 2,
+  calendarBadge: {
+    position: "absolute",
+    bottom: 4,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
   },
-  viewBtnActive: {
-    backgroundColor: Colors.surface,
-  },
-  viewBtnText: {
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    fontWeight: "500",
-  },
-  viewBtnTextActive: {
-    color: Colors.primary,
-    fontWeight: "600",
+  calendarBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#fff",
   },
   weekPicker: {
     flexGrow: 0,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   weekPickerContent: {
     paddingHorizontal: Spacing.lg,
+    justifyContent: "space-between",
+    flexGrow: 1,
+    minWidth: "100%",
+  },
+  dayItem: {
+    alignItems: "center",
+    minWidth: 44,
     gap: Spacing.sm,
   },
-  dayPill: {
-    alignItems: "center",
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.surface,
-    minWidth: 52,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  dayPillActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  dayPillLabel: {
+  dayLabel: {
     fontSize: FontSize.xs,
+    fontWeight: "600",
     color: Colors.textMuted,
-    marginBottom: 4,
+    letterSpacing: 0.3,
   },
-  dayPillLabelActive: {
-    color: "rgba(255,255,255,0.8)",
+  dayLabelActive: {
+    color: Colors.primary,
   },
-  dayPillDate: {
+  dayLabelToday: {
+    color: Colors.textSecondary,
+  },
+  dayCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayCircleActive: {
+    backgroundColor: Colors.primary,
+    ...Shadow.sm,
+  },
+  dayNumber: {
     fontSize: FontSize.lg,
     fontWeight: "700",
     color: Colors.text,
   },
-  dayPillDateActive: {
+  dayNumberActive: {
     color: "#fff",
   },
-  timeGrid: {
+  divider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  dayHeader: {
+    fontSize: FontSize.md,
+    fontWeight: "600",
+    color: Colors.text,
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  timeline: {
     paddingHorizontal: Spacing.lg,
   },
   timeRow: {
     flexDirection: "row",
-    minHeight: 64,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    minHeight: 72,
   },
   timeLabel: {
-    width: 56,
+    width: 52,
     fontSize: FontSize.xs,
     color: Colors.textMuted,
-    paddingTop: Spacing.sm,
+    fontWeight: "500",
+    paddingTop: 2,
+    textAlign: "right",
+    paddingRight: Spacing.sm,
   },
-  timeSlot: {
+  timelineTrack: {
+    width: 20,
+    alignItems: "center",
+  },
+  timelineLine: {
+    width: 1,
     flex: 1,
-    paddingVertical: Spacing.xs,
-    gap: Spacing.xs,
+    backgroundColor: Colors.border,
+    minHeight: 72,
   },
-  taskBlock: {
-    backgroundColor: Colors.primaryMuted,
-    borderRadius: Radius.sm,
-    padding: Spacing.sm,
-    borderLeftWidth: 3,
+  timelineLineLast: {
+    minHeight: 48,
   },
-  taskBlockTitle: {
-    fontSize: FontSize.sm,
+  slotContent: {
+    flex: 1,
+    paddingLeft: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  emptySlot: {
+    height: 56,
+  },
+  taskCard: {
+    borderRadius: Radius.md,
+    overflow: "hidden",
+    borderWidth: 1,
+    ...Shadow.sm,
+  },
+  taskCardGradient: {
+    padding: Spacing.md,
+  },
+  taskCardBody: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
+  },
+  taskCardText: {
+    flex: 1,
+    gap: 2,
+  },
+  taskTitle: {
+    fontSize: FontSize.md,
     fontWeight: "600",
     color: Colors.text,
   },
-  taskBlockTime: {
-    fontSize: FontSize.xs,
+  taskCategory: {
+    fontSize: FontSize.sm,
     color: Colors.textSecondary,
-    marginTop: 2,
+  },
+  emptyDay: {
+    alignItems: "center",
+    paddingVertical: Spacing.xxxl,
+    gap: Spacing.md,
+  },
+  emptyDayText: {
+    fontSize: FontSize.sm,
+    color: Colors.textMuted,
   },
 });
