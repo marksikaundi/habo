@@ -359,11 +359,6 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     marginTop: 4,
   },
-  priorityDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
   progressTrack: {
     backgroundColor: Colors.borderLight,
     borderRadius: Radius.full,

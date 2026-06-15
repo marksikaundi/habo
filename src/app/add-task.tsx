@@ -16,7 +16,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/context/AppContext";
-import { getPriorityColor } from "@/context/AppContext";
 import { Colors, FontSize, Radius, Shadow, Spacing } from "@/constants/theme";
 import type { Priority } from "@/types";
 

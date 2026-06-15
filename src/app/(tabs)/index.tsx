@@ -29,7 +29,10 @@ export default function HomeScreen() {
   const totalToday = todayTasks.length + completedToday;
   const activeGoal = goals[0];
   const unreadNotifs = notifications.filter((n) => !n.read).length;
-  const focusHours = `${Math.floor(focusMinutesToday / 60)}h ${focusMinutesToday % 60}m`;
+  const focusHours =
+    focusMinutesToday >= 60
+      ? `${(focusMinutesToday / 60).toFixed(1).replace(/\.0$/, "")}h`
+      : `${focusMinutesToday}m`;
 
   return (
     <View style={styles.container}>
