@@ -28,6 +28,8 @@ export default function SettingsScreen() {
       title: "Preferences",
       items: [
         { icon: "person-outline", label: "Profile Settings", route: "/(auth)/signup" },
+        { icon: "flag-outline", label: "Goals", route: "/goals" },
+        { icon: "document-text-outline", label: "Notes", route: "/notes" },
         { icon: "color-palette-outline", label: "Appearance", value: "Light Mode" },
         { icon: "notifications-outline", label: "Notifications", route: "/notifications" },
         { icon: "timer-outline", label: "Focus Mode Settings", route: "/(tabs)/focus" },
