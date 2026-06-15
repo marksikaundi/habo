@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   createContext,
   useCallback,
@@ -9,18 +8,29 @@ import {
   type ReactNode,
 } from "react";
 
+import { isAppwriteConfigured } from "@/constants/appwrite";
 import {
-  MOCK_BADGES,
-  MOCK_GOALS,
-  MOCK_NOTES,
-  MOCK_NOTIFICATIONS,
-  MOCK_TASKS,
-} from "@/constants/mock-data";
+  createGoal as createGoalDoc,
+  createNote as createNoteDoc,
+  createTask as createTaskDoc,
+  fetchUserData,
+  markNotificationAsRead as markNotificationReadDoc,
+  updateTaskCompleted,
+  type UserStats,
+} from "@/services/appwrite-data";
+import {
+  getAppwriteErrorMessage,
+  getCurrentSessionUser,
+  loginWithEmail,
+  logoutCurrentSession,
+  signupWithEmail,
+} from "@/services/appwrite-auth";
 import type { Goal, Note, Notification, Priority, Task, User } from "@/types";
 
 type AppState = {
   isLoading: boolean;
   isAuthenticated: boolean;
+  isConfigured: boolean;
   user: User | null;
   tasks: Task[];
   goals: Goal[];
@@ -30,125 +40,216 @@ type AppState = {
   focusStreak: number;
   xp: number;
   level: number;
+  authError: string | null;
+  clearAuthError: () => void;
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
-  toggleTask: (id: string) => void;
-  addTask: (task: Omit<Task, "id" | "completed">) => void;
-  addGoal: (goal: Omit<Goal, "id" | "taskIds" | "progress">) => void;
-  addNote: (note: Omit<Note, "id" | "createdAt">) => void;
-  markNotificationRead: (id: string) => void;
+  toggleTask: (id: string) => Promise<void>;
+  addTask: (task: Omit<Task, "id" | "completed">) => Promise<void>;
+  addGoal: (goal: Omit<Goal, "id" | "taskIds" | "progress">) => Promise<void>;
+  addNote: (note: Omit<Note, "id" | "createdAt">) => Promise<void>;
+  markNotificationRead: (id: string) => Promise<void>;
+  refreshData: () => Promise<void>;
 };
 
-const AUTH_KEY = "@habora/auth";
-
 const AppContext = createContext<AppState | null>(null);
+
+function applyStats(setters: {
+  setFocusMinutesToday: (v: number) => void;
+  setFocusStreak: (v: number) => void;
+  setXp: (v: number) => void;
+  setLevel: (v: number) => void;
+}, stats: UserStats) {
+  setters.setFocusMinutesToday(stats.focusMinutesToday);
+  setters.setFocusStreak(stats.focusStreak);
+  setters.setXp(stats.xp);
+  setters.setLevel(stats.level);
+}
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
-  const [tasks, setTasks] = useState<Task[]>(MOCK_TASKS);
-  const [goals, setGoals] = useState<Goal[]>(MOCK_GOALS);
-  const [notes, setNotes] = useState<Note[]>(MOCK_NOTES);
-  const [notifications, setNotifications] =
-    useState<Notification[]>(MOCK_NOTIFICATIONS);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [focusMinutesToday, setFocusMinutesToday] = useState(0);
+  const [focusStreak, setFocusStreak] = useState(0);
+  const [xp, setXp] = useState(0);
+  const [level, setLevel] = useState(1);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const isConfigured = isAppwriteConfigured();
+
+  const clearAuthError = useCallback(() => setAuthError(null), []);
+
+  const loadUserData = useCallback(async (userId: string) => {
+    const data = await fetchUserData(userId);
+    setTasks(data.tasks);
+    setGoals(data.goals);
+    setNotes(data.notes);
+    setNotifications(data.notifications);
+    applyStats(
+      { setFocusMinutesToday, setFocusStreak, setXp, setLevel },
+      data.stats,
+    );
+  }, []);
+
+  const refreshData = useCallback(async () => {
+    if (!user) return;
+    await loadUserData(user.id);
+  }, [user, loadUserData]);
 
   useEffect(() => {
-    AsyncStorage.getItem(AUTH_KEY)
-      .then((stored) => {
-        if (stored) {
-          setUser(JSON.parse(stored) as User);
-          setIsAuthenticated(true);
-        }
-      })
-      .finally(() => setIsLoading(false));
-  }, []);
+    async function init() {
+      if (!isConfigured) {
+        setIsLoading(false);
+        return;
+      }
 
-  const login = useCallback(async (email: string, _password: string) => {
-    const u: User = { name: "Mark", email };
-    await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(u));
-    setUser(u);
-    setIsAuthenticated(true);
-  }, []);
+      try {
+        const sessionUser = await getCurrentSessionUser();
+        if (sessionUser) {
+          setUser(sessionUser);
+          setIsAuthenticated(true);
+          await loadUserData(sessionUser.id);
+        }
+      } catch {
+        setUser(null);
+        setIsAuthenticated(false);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    void init();
+  }, [isConfigured, loadUserData]);
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      setAuthError(null);
+      try {
+        const sessionUser = await loginWithEmail(email, password);
+        setUser(sessionUser);
+        setIsAuthenticated(true);
+        await loadUserData(sessionUser.id);
+      } catch (error) {
+        setAuthError(getAppwriteErrorMessage(error));
+        throw error;
+      }
+    },
+    [loadUserData],
+  );
 
   const signup = useCallback(
-    async (name: string, email: string, _password: string) => {
-      const u: User = { name, email };
-      await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(u));
-      setUser(u);
-      setIsAuthenticated(true);
+    async (name: string, email: string, password: string) => {
+      setAuthError(null);
+      try {
+        const sessionUser = await signupWithEmail(name, email, password);
+        setUser(sessionUser);
+        setIsAuthenticated(true);
+        await loadUserData(sessionUser.id);
+      } catch (error) {
+        setAuthError(getAppwriteErrorMessage(error));
+        throw error;
+      }
     },
-    [],
+    [loadUserData],
   );
 
   const logout = useCallback(async () => {
-    await AsyncStorage.removeItem(AUTH_KEY);
+    await logoutCurrentSession();
     setUser(null);
     setIsAuthenticated(false);
+    setTasks([]);
+    setGoals([]);
+    setNotes([]);
+    setNotifications([]);
+    setFocusMinutesToday(0);
+    setFocusStreak(0);
+    setXp(0);
+    setLevel(1);
   }, []);
 
-  const completeOnboarding = useCallback(async () => {
-    // no-op for now; splash handles routing
-  }, []);
+  const completeOnboarding = useCallback(async () => {}, []);
 
-  const toggleTask = useCallback((id: string) => {
+  const toggleTask = useCallback(async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+
+    const nextCompleted = !task.completed;
     setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)),
+      prev.map((t) => (t.id === id ? { ...t, completed: nextCompleted } : t)),
     );
-  }, []);
 
-  const addTask = useCallback((task: Omit<Task, "id" | "completed">) => {
-    const newTask: Task = {
-      ...task,
-      id: Date.now().toString(),
-      completed: false,
-    };
-    setTasks((prev) => [newTask, ...prev]);
-  }, []);
+    try {
+      await updateTaskCompleted(id, nextCompleted);
+    } catch {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, completed: task.completed } : t)),
+      );
+    }
+  }, [tasks]);
 
-  const addGoal = useCallback(
-    (goal: Omit<Goal, "id" | "taskIds" | "progress">) => {
-      const newGoal: Goal = {
-        ...goal,
-        id: `g${Date.now()}`,
-        progress: 0,
-        taskIds: [],
-      };
-      setGoals((prev) => [newGoal, ...prev]);
+  const addTask = useCallback(
+    async (task: Omit<Task, "id" | "completed">) => {
+      if (!user) return;
+      const created = await createTaskDoc(user.id, task);
+      setTasks((prev) => [created, ...prev]);
     },
-    [],
+    [user],
   );
 
-  const addNote = useCallback((note: Omit<Note, "id" | "createdAt">) => {
-    const newNote: Note = {
-      ...note,
-      id: `n${Date.now()}`,
-      createdAt: new Date().toISOString().split("T")[0] ?? "",
-    };
-    setNotes((prev) => [newNote, ...prev]);
-  }, []);
+  const addGoal = useCallback(
+    async (goal: Omit<Goal, "id" | "taskIds" | "progress">) => {
+      if (!user) return;
+      const created = await createGoalDoc(user.id, goal);
+      setGoals((prev) => [created, ...prev]);
+    },
+    [user],
+  );
 
-  const markNotificationRead = useCallback((id: string) => {
+  const addNote = useCallback(
+    async (note: Omit<Note, "id" | "createdAt">) => {
+      if (!user) return;
+      const created = await createNoteDoc(user.id, note);
+      setNotes((prev) => [created, ...prev]);
+    },
+    [user],
+  );
+
+  const markNotificationRead = useCallback(async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
+    try {
+      await markNotificationReadDoc(id);
+    } catch {
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: false } : n)),
+      );
+    }
   }, []);
 
   const value = useMemo<AppState>(
     () => ({
       isLoading,
       isAuthenticated,
+      isConfigured,
       user,
       tasks,
       goals,
       notes,
       notifications,
-      focusMinutesToday: 150,
-      focusStreak: 3,
-      xp: 1250,
-      level: 7,
+      focusMinutesToday,
+      focusStreak,
+      xp,
+      level,
+      authError,
+      clearAuthError,
       login,
       signup,
       logout,
@@ -158,15 +259,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addGoal,
       addNote,
       markNotificationRead,
+      refreshData,
     }),
     [
       isLoading,
       isAuthenticated,
+      isConfigured,
       user,
       tasks,
       goals,
       notes,
       notifications,
+      focusMinutesToday,
+      focusStreak,
+      xp,
+      level,
+      authError,
+      clearAuthError,
       login,
       signup,
       logout,
@@ -176,6 +285,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addGoal,
       addNote,
       markNotificationRead,
+      refreshData,
     ],
   );
 

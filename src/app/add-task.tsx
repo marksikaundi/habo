@@ -30,36 +30,52 @@ export default function AddTaskScreen() {
   const [subtasks, setSubtasks] = useState<string[]>([]);
   const [newSubtask, setNewSubtask] = useState("");
   const [fastMode, setFastMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) return;
-
-    addTask({
-      title: title.trim(),
-      description: description.trim() || undefined,
-      dueDate,
-      priority,
-      category: "Work",
-      goalId: selectedGoal,
-      subtasks: subtasks.map((s, i) => ({
-        id: `sub-${i}`,
-        title: s,
-        completed: false,
-      })),
-    });
-
-    router.back();
+    setSaving(true);
+    setError(null);
+    try {
+      await addTask({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        dueDate,
+        priority,
+        category: "Work",
+        goalId: selectedGoal,
+        subtasks: subtasks.map((s, i) => ({
+          id: `sub-${i}`,
+          title: s,
+          completed: false,
+        })),
+      });
+      router.back();
+    } catch {
+      setError("Failed to save task. Check your Appwrite connection.");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleFastAdd = () => {
+  const handleFastAdd = async () => {
     if (!title.trim()) return;
-    addTask({
-      title: title.trim(),
-      dueDate,
-      priority: "medium",
-      category: "Personal",
-    });
-    router.back();
+    setSaving(true);
+    setError(null);
+    try {
+      await addTask({
+        title: title.trim(),
+        dueDate,
+        priority: "medium",
+        category: "Personal",
+      });
+      router.back();
+    } catch {
+      setError("Failed to save task. Check your Appwrite connection.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -84,6 +100,8 @@ export default function AddTaskScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
         <Input
           label="Task Title"
           value={title}
@@ -92,7 +110,7 @@ export default function AddTaskScreen() {
         />
 
         {fastMode ? (
-          <Button title="Quick Add" onPress={handleFastAdd} disabled={!title.trim()} />
+          <Button title="Quick Add" onPress={handleFastAdd} disabled={!title.trim() || saving} />
         ) : (
           <>
             <Input
@@ -171,7 +189,7 @@ export default function AddTaskScreen() {
               ))}
             </View>
 
-            <Button title="Save Task" onPress={handleSave} disabled={!title.trim()} />
+            <Button title={saving ? "Saving..." : "Save Task"} onPress={handleSave} disabled={!title.trim() || saving} />
           </>
         )}
       </ScrollView>
@@ -267,5 +285,10 @@ const styles = StyleSheet.create({
   goalOptionText: {
     fontSize: FontSize.md,
     color: Colors.text,
+  },
+  error: {
+    color: Colors.danger,
+    fontSize: FontSize.sm,
+    marginBottom: Spacing.md,
   },
 });

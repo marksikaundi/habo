@@ -19,18 +19,32 @@ import { Colors, FontSize, Spacing } from "@/constants/theme";
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { login } = useApp();
+  const { login, authError, clearAuthError, isConfigured } = useApp();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const handleLogin = async () => {
     if (!email || !password) return;
+    if (!isConfigured) {
+      setLocalError("Appwrite is not configured. Add your keys to .env — see docs/APPWRITE_SETUP.md");
+      return;
+    }
     setLoading(true);
-    await login(email, password);
-    setLoading(false);
-    router.replace("/(tabs)");
+    setLocalError(null);
+    clearAuthError();
+    try {
+      await login(email, password);
+      router.replace("/(tabs)");
+    } catch {
+      // authError set in context
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const errorMessage = localError ?? authError;
 
   return (
     <KeyboardAvoidingView
@@ -45,6 +59,12 @@ export default function LoginScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
+        {errorMessage ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        ) : null}
+
         <Input
           label="Email Address"
           value={email}
@@ -136,5 +156,16 @@ const styles = StyleSheet.create({
   linkBold: {
     color: Colors.primary,
     fontWeight: "600",
+  },
+  errorBox: {
+    backgroundColor: "#FEE2E2",
+    borderRadius: 8,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  errorText: {
+    color: Colors.danger,
+    fontSize: FontSize.sm,
+    lineHeight: 18,
   },
 });

@@ -19,19 +19,33 @@ import { Colors, FontSize, Spacing } from "@/constants/theme";
 
 export default function SignUpScreen() {
   const insets = useSafeAreaInsets();
-  const { signup } = useApp();
+  const { signup, authError, clearAuthError, isConfigured } = useApp();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const handleSignup = async () => {
     if (!name || !email || !password) return;
+    if (!isConfigured) {
+      setLocalError("Appwrite is not configured. Add your keys to .env — see docs/APPWRITE_SETUP.md");
+      return;
+    }
     setLoading(true);
-    await signup(name, email, password);
-    setLoading(false);
-    router.replace("/(tabs)");
+    setLocalError(null);
+    clearAuthError();
+    try {
+      await signup(name, email, password);
+      router.replace("/(tabs)");
+    } catch {
+      // authError set in context
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const errorMessage = localError ?? authError;
 
   return (
     <KeyboardAvoidingView
@@ -50,6 +64,12 @@ export default function SignUpScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
+        {errorMessage ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        ) : null}
+
         <Input label="Full Name" value={name} onChangeText={setName} placeholder="Mark Johnson" />
         <Input
           label="Email Address"
@@ -128,5 +148,16 @@ const styles = StyleSheet.create({
   linkBold: {
     color: Colors.primary,
     fontWeight: "600",
+  },
+  errorBox: {
+    backgroundColor: "#FEE2E2",
+    borderRadius: 8,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  errorText: {
+    color: Colors.danger,
+    fontSize: FontSize.sm,
+    lineHeight: 18,
   },
 });

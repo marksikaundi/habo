@@ -41,6 +41,7 @@ export type Notification = {
 };
 
 export type User = {
+  id: string;
   name: string;
   email: string;
 };

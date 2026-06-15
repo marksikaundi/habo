@@ -2,16 +2,44 @@
 
 Plan. Focus. Achieve.
 
-A production-style productivity mobile app built with **Expo SDK 56** and **Expo Router**. Combines task management, focus sessions, goals, notes, analytics, and gamification in a clean purple-themed UI.
+A production-style productivity mobile app built with **Expo SDK 56**, **Expo Router**, and **Appwrite** for authentication and database.
 
 ## Get started
 
+### 1. Install dependencies
+
 ```bash
 npm install
-npx expo start
+```
+
+### 2. Set up Appwrite
+
+Follow **[docs/APPWRITE_SETUP.md](docs/APPWRITE_SETUP.md)** to create your Appwrite project, database collections, and mobile platform.
+
+### 3. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your Appwrite endpoint and project ID.
+
+### 4. Run the app
+
+```bash
+npx expo start -c
 ```
 
 Open in Expo Go, iOS Simulator, or Android Emulator.
+
+## Backend (Appwrite)
+
+| Service | Usage |
+|---------|-------|
+| **Auth** | Email/password sign up, login, session persistence |
+| **Database** | Tasks, goals, notes, notifications, user stats |
+
+Collections are scoped per user with document-level permissions. See [docs/APPWRITE_SETUP.md](docs/APPWRITE_SETUP.md) for the full schema.
 
 ## App flow
 
@@ -34,40 +62,31 @@ Open in Expo Go, iOS Simulator, or Android Emulator.
 | Gamification | `/gamification` |
 | Collaboration | `/collaboration` |
 
-## Features
-
-- **Bottom tab navigation** — Home, Tasks, Calendar, Focus, Settings
-- **Floating action button** — Quick add task from any tab
-- **Auth flow** — Welcome carousel, sign up, login (persisted with AsyncStorage)
-- **Task management** — Tabs, search, priority filter, swipe-to-complete
-- **Focus mode** — Pomodoro timer with break sessions and streak counter
-- **Goals & notes** — Progress tracking and tagged notes
-- **Analytics** — Productivity score, focus time, completion charts
-- **Gamification** — XP, levels, badges, daily challenges
-
 ## Project structure
 
 ```
 src/
-├── app/           # Expo Router screens
-├── components/    # Shared UI (Button, TaskItem, ScreenHeader, etc.)
-├── constants/     # Theme tokens and mock data
-├── context/       # App state (tasks, goals, auth)
-└── types/         # TypeScript types
+├── app/              # Expo Router screens
+├── components/       # Shared UI
+├── constants/        # Theme + Appwrite config
+├── context/          # App state (Appwrite-backed)
+├── lib/              # Appwrite client + mappers
+├── services/         # Auth + database API layer
+└── types/
+docs/
+└── APPWRITE_SETUP.md # Backend setup guide
 ```
 
 ## Tech stack
 
 - Expo 56 / React Native 0.85
-- Expo Router (file-based routing)
+- Expo Router
+- Appwrite (`react-native-appwrite`)
 - TypeScript (strict)
-- @expo/vector-icons
-- expo-linear-gradient
-- @react-native-async-storage/async-storage
 
 ## Next steps
 
-- Connect a backend (e.g. Convex) for real-time sync
-- Add Clerk authentication
+- Google OAuth via Appwrite
 - Push notifications for task reminders
+- Realtime subscriptions for live task sync
 - Haptic feedback and sound alerts in Focus mode
