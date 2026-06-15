@@ -88,12 +88,7 @@ export default function CalendarScreen() {
         }
       />
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.weekPicker}
-        contentContainerStyle={styles.weekPickerContent}
-      >
+      <View style={styles.weekPicker}>
         {weekDays.map((day) => {
           const selected = isSameDay(day, selectedDate);
           const isToday = isSameDay(day, today);
@@ -110,6 +105,7 @@ export default function CalendarScreen() {
                   selected && styles.dayLabelActive,
                   isToday && !selected && styles.dayLabelToday,
                 ]}
+                numberOfLines={1}
               >
                 {formatWeekdayShort(day)}
               </Text>
@@ -121,7 +117,7 @@ export default function CalendarScreen() {
             </Pressable>
           );
         })}
-      </ScrollView>
+      </View>
 
       <View style={styles.divider} />
 
@@ -229,25 +225,25 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   weekPicker: {
-    flexGrow: 0,
+    flexDirection: "row",
+    paddingHorizontal: Spacing.md,
     marginBottom: Spacing.md,
-  },
-  weekPickerContent: {
-    paddingHorizontal: Spacing.lg,
-    justifyContent: "space-between",
-    flexGrow: 1,
-    minWidth: "100%",
+    paddingVertical: Spacing.sm,
+    minHeight: 76,
   },
   dayItem: {
+    flex: 1,
     alignItems: "center",
-    minWidth: 44,
+    justifyContent: "center",
     gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
   dayLabel: {
-    fontSize: FontSize.xs,
-    fontWeight: "600",
+    fontSize: 10,
+    fontWeight: "700",
     color: Colors.textMuted,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
+    textAlign: "center",
   },
   dayLabelActive: {
     color: Colors.primary,
@@ -256,9 +252,9 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   dayCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -267,7 +263,7 @@ const styles = StyleSheet.create({
     ...Shadow.sm,
   },
   dayNumber: {
-    fontSize: FontSize.lg,
+    fontSize: FontSize.md,
     fontWeight: "700",
     color: Colors.text,
   },
