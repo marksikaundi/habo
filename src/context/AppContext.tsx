@@ -58,6 +58,7 @@ type AppState = {
   addGoal: (goal: Omit<Goal, "id" | "taskIds" | "progress">) => Promise<void>;
   addNote: (note: Omit<Note, "id" | "createdAt">) => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
   refreshData: () => Promise<void>;
   saveFocusSession: (seconds: number) => Promise<void>;
 };
@@ -281,6 +282,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const markAllNotificationsRead = useCallback(async () => {
+    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id);
+    if (unreadIds.length === 0) return;
+
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    try {
+      await Promise.all(unreadIds.map((id) => markNotificationReadDoc(id)));
+    } catch {
+      await refreshData();
+    }
+  }, [notifications, refreshData]);
+
   const saveFocusSession = useCallback(
     async (seconds: number) => {
       if (!user || seconds < 30) return;
@@ -324,6 +337,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addGoal,
       addNote,
       markNotificationRead,
+      markAllNotificationsRead,
       refreshData,
       saveFocusSession,
     }),
@@ -354,6 +368,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addGoal,
       addNote,
       markNotificationRead,
+      markAllNotificationsRead,
       refreshData,
       saveFocusSession,
     ],
