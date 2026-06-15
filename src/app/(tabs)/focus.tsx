@@ -95,7 +95,7 @@ export default function FocusScreen() {
       <ScreenHeader
         title="Focus Mode"
         rightIcon="settings-outline"
-        onRightPress={() => router.push("/(tabs)/settings")}
+        onRightPress={() => router.push("/analytics")}
       />
 
       <View style={[styles.content, { paddingBottom: insets.bottom + 100 }]}>
