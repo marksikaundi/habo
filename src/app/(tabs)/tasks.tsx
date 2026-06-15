@@ -201,6 +201,7 @@ export default function TasksScreen() {
             task={item}
             variant="list"
             onToggle={() => toggleTask(item.id)}
+            onPress={() => router.push(`/task/${item.id}`)}
           />
         )}
         ListEmptyComponent={

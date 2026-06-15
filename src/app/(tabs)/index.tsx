@@ -76,6 +76,7 @@ export default function HomeScreen() {
                 task={task}
                 compact
                 onToggle={() => toggleTask(task.id)}
+                onPress={() => router.push(`/task/${task.id}`)}
               />
             ))
           ) : (

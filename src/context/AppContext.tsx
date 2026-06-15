@@ -13,10 +13,16 @@ import { getSchemaSetupMessage, isSchemaSetupError } from "@/lib/schema-errors";
 import {
   createGoal as createGoalDoc,
   createNote as createNoteDoc,
+  deleteNote as deleteNoteDoc,
   createTask as createTaskDoc,
+  deleteGoal as deleteGoalDoc,
+  deleteTask as deleteTaskDoc,
   fetchUserData,
   addFocusMinutes,
   markNotificationAsRead as markNotificationReadDoc,
+  updateGoal as updateGoalDoc,
+  updateNote as updateNoteDoc,
+  updateTask as updateTaskDoc,
   updateTaskCompleted,
   type UserStats,
 } from "@/services/appwrite-data";
@@ -30,6 +36,7 @@ import {
   signupWithEmail,
 } from "@/services/appwrite-auth";
 import type { Goal, Note, Notification, Priority, Task, User } from "@/types";
+import type { GoalUpdate, NoteUpdate, TaskUpdate } from "@/services/appwrite-data";
 
 type AppState = {
   isLoading: boolean;
@@ -55,8 +62,14 @@ type AppState = {
   completeOnboarding: () => Promise<void>;
   toggleTask: (id: string) => Promise<void>;
   addTask: (task: Omit<Task, "id" | "completed">) => Promise<void>;
+  updateTask: (id: string, updates: TaskUpdate) => Promise<void>;
+  deleteTask: (id: string) => Promise<void>;
   addGoal: (goal: Omit<Goal, "id" | "taskIds" | "progress">) => Promise<void>;
+  updateGoal: (id: string, updates: GoalUpdate) => Promise<void>;
+  deleteGoal: (id: string) => Promise<void>;
   addNote: (note: Omit<Note, "id" | "createdAt">) => Promise<void>;
+  updateNote: (id: string, updates: NoteUpdate) => Promise<void>;
+  deleteNote: (id: string) => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
   refreshData: () => Promise<void>;
@@ -251,6 +264,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [user],
   );
 
+  const updateTask = useCallback(
+    async (id: string, updates: TaskUpdate) => {
+      const previous = tasks.find((t) => t.id === id);
+      if (!previous) return;
+
+      setTasks((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+      );
+
+      try {
+        const updated = await updateTaskDoc(id, updates);
+        setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
+      } catch {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === id ? previous : t)),
+        );
+        throw new Error("Failed to update task");
+      }
+    },
+    [tasks],
+  );
+
+  const deleteTask = useCallback(async (id: string) => {
+    const previous = tasks;
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    setGoals((prev) =>
+      prev.map((g) => ({
+        ...g,
+        taskIds: g.taskIds.filter((taskId) => taskId !== id),
+      })),
+    );
+
+    try {
+      await deleteTaskDoc(id);
+    } catch {
+      setTasks(previous);
+      await refreshData();
+      throw new Error("Failed to delete task");
+    }
+  }, [tasks, refreshData]);
+
   const addGoal = useCallback(
     async (goal: Omit<Goal, "id" | "taskIds" | "progress">) => {
       if (!user) return;
@@ -258,6 +312,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setGoals((prev) => [created, ...prev]);
     },
     [user],
+  );
+
+  const updateGoal = useCallback(
+    async (id: string, updates: GoalUpdate) => {
+      const previous = goals.find((g) => g.id === id);
+      if (!previous) return;
+
+      setGoals((prev) =>
+        prev.map((g) => (g.id === id ? { ...g, ...updates } : g)),
+      );
+
+      try {
+        await updateGoalDoc(id, updates);
+      } catch {
+        setGoals((prev) =>
+          prev.map((g) => (g.id === id ? previous : g)),
+        );
+        throw new Error("Failed to update goal");
+      }
+    },
+    [goals],
+  );
+
+  const deleteGoal = useCallback(
+    async (id: string) => {
+      const previousGoals = goals;
+      const previousTasks = tasks;
+      const linked = tasks.filter((t) => t.goalId === id);
+
+      setGoals((prev) => prev.filter((g) => g.id !== id));
+      setTasks((prev) =>
+        prev.map((t) => (t.goalId === id ? { ...t, goalId: undefined } : t)),
+      );
+
+      try {
+        await Promise.all(
+          linked.map((t) => updateTaskDoc(t.id, { goalId: undefined })),
+        );
+        await deleteGoalDoc(id);
+      } catch {
+        setGoals(previousGoals);
+        setTasks(previousTasks);
+        throw new Error("Failed to delete goal");
+      }
+    },
+    [goals, tasks],
   );
 
   const addNote = useCallback(
@@ -268,6 +368,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     [user],
   );
+
+  const updateNote = useCallback(
+    async (id: string, updates: NoteUpdate) => {
+      const previous = notes.find((n) => n.id === id);
+      if (!previous) return;
+
+      setNotes((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, ...updates } : n)),
+      );
+
+      try {
+        const updated = await updateNoteDoc(id, updates);
+        setNotes((prev) => prev.map((n) => (n.id === id ? updated : n)));
+      } catch {
+        setNotes((prev) =>
+          prev.map((n) => (n.id === id ? previous : n)),
+        );
+        throw new Error("Failed to update note");
+      }
+    },
+    [notes],
+  );
+
+  const deleteNote = useCallback(async (id: string) => {
+    const previous = notes;
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+
+    try {
+      await deleteNoteDoc(id);
+    } catch {
+      setNotes(previous);
+      throw new Error("Failed to delete note");
+    }
+  }, [notes]);
 
   const markNotificationRead = useCallback(async (id: string) => {
     setNotifications((prev) =>
@@ -334,8 +468,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       toggleTask,
       addTask,
+      updateTask,
+      deleteTask,
       addGoal,
+      updateGoal,
+      deleteGoal,
       addNote,
+      updateNote,
+      deleteNote,
       markNotificationRead,
       markAllNotificationsRead,
       refreshData,
@@ -365,8 +505,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       toggleTask,
       addTask,
+      updateTask,
+      deleteTask,
       addGoal,
+      updateGoal,
+      deleteGoal,
       addNote,
+      updateNote,
+      deleteNote,
       markNotificationRead,
       markAllNotificationsRead,
       refreshData,

@@ -145,6 +145,54 @@ export async function updateTaskCompleted(
   });
 }
 
+export type TaskUpdate = Partial<
+  Pick<
+    Task,
+    | "title"
+    | "description"
+    | "dueDate"
+    | "dueTime"
+    | "priority"
+    | "category"
+    | "completed"
+    | "goalId"
+    | "subtasks"
+  >
+>;
+
+export async function updateTask(taskId: string, updates: TaskUpdate): Promise<Task> {
+  const data: Record<string, unknown> = {};
+
+  if (updates.title !== undefined) data.title = updates.title;
+  if (updates.description !== undefined) data.description = updates.description;
+  if (updates.dueDate !== undefined) data.dueDate = updates.dueDate;
+  if (updates.dueTime !== undefined) data.dueTime = updates.dueTime;
+  if (updates.priority !== undefined) data.priority = updates.priority;
+  if (updates.category !== undefined) data.category = updates.category;
+  if (updates.completed !== undefined) data.completed = updates.completed;
+  if (updates.goalId !== undefined) data.goalId = updates.goalId || null;
+  if (updates.subtasks !== undefined) {
+    data.subtasks = updates.subtasks.length > 0 ? JSON.stringify(updates.subtasks) : null;
+  }
+
+  const doc = await databases.updateDocument<TaskDocument>({
+    databaseId,
+    collectionId: collections.tasks,
+    documentId: taskId,
+    data: data as Partial<TaskDocument>,
+  });
+
+  return mapTaskDoc(doc);
+}
+
+export async function deleteTask(taskId: string): Promise<void> {
+  await databases.deleteDocument({
+    databaseId,
+    collectionId: collections.tasks,
+    documentId: taskId,
+  });
+}
+
 export async function createGoal(
   userId: string,
   goal: Omit<Goal, "id" | "taskIds" | "progress">,
@@ -162,6 +210,30 @@ export async function createGoal(
     permissions: userDocumentPermissions(userId),
   });
   return mapGoalDoc(doc);
+}
+
+export type GoalUpdate = Partial<Pick<Goal, "title" | "dueDate" | "progress">>;
+
+export async function updateGoal(goalId: string, updates: GoalUpdate): Promise<GoalDocument> {
+  const data: Record<string, unknown> = {};
+  if (updates.title !== undefined) data.title = updates.title;
+  if (updates.dueDate !== undefined) data.dueDate = updates.dueDate;
+  if (updates.progress !== undefined) data.progress = updates.progress;
+
+  return await databases.updateDocument<GoalDocument>({
+    databaseId,
+    collectionId: collections.goals,
+    documentId: goalId,
+    data: data as Partial<GoalDocument>,
+  });
+}
+
+export async function deleteGoal(goalId: string): Promise<void> {
+  await databases.deleteDocument({
+    databaseId,
+    collectionId: collections.goals,
+    documentId: goalId,
+  });
 }
 
 export async function createNote(
@@ -183,6 +255,33 @@ export async function createNote(
     permissions: userDocumentPermissions(userId),
   });
   return mapNoteDoc(doc);
+}
+
+export type NoteUpdate = Partial<Pick<Note, "title" | "content" | "tag" | "taskId">>;
+
+export async function updateNote(noteId: string, updates: NoteUpdate): Promise<Note> {
+  const data: Record<string, unknown> = {};
+  if (updates.title !== undefined) data.title = updates.title;
+  if (updates.content !== undefined) data.content = updates.content;
+  if (updates.tag !== undefined) data.tag = updates.tag;
+  if (updates.taskId !== undefined) data.taskId = updates.taskId || null;
+
+  const doc = await databases.updateDocument<NoteDocument>({
+    databaseId,
+    collectionId: collections.notes,
+    documentId: noteId,
+    data: data as Partial<NoteDocument>,
+  });
+
+  return mapNoteDoc(doc);
+}
+
+export async function deleteNote(noteId: string): Promise<void> {
+  await databases.deleteDocument({
+    databaseId,
+    collectionId: collections.notes,
+    documentId: noteId,
+  });
 }
 
 export async function markNotificationAsRead(notificationId: string): Promise<void> {

@@ -160,7 +160,11 @@ export default function NotesScreen() {
         showsVerticalScrollIndicator={false}
       >
         {filtered.map((note) => (
-          <View key={note.id} style={styles.noteCard}>
+          <Pressable
+            key={note.id}
+            onPress={() => router.push(`/note/${note.id}`)}
+            style={({ pressed }) => [styles.noteCard, pressed && { opacity: 0.92 }]}
+          >
             <Text style={styles.noteTitle} numberOfLines={1}>
               {note.title}
             </Text>
@@ -168,7 +172,7 @@ export default function NotesScreen() {
             <Text style={styles.notePreview} numberOfLines={2}>
               {notePreview(note.content)}
             </Text>
-          </View>
+          </Pressable>
         ))}
 
         {filtered.length === 0 ? (

@@ -28,6 +28,8 @@ export default function RootLayout() {
             <Stack.Screen name="gamification" />
             <Stack.Screen name="collaboration" />
             <Stack.Screen name="goal/[id]" />
+            <Stack.Screen name="task/[id]" />
+            <Stack.Screen name="note/[id]" />
           </Stack>
         </AppProvider>
       </SafeAreaProvider>
