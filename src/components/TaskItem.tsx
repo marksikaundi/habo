@@ -10,9 +10,10 @@ type TaskItemProps = {
   onToggle?: () => void;
   onPress?: () => void;
   compact?: boolean;
+  variant?: "default" | "list";
 };
 
-export function TaskItem({ task, onToggle, onPress, compact }: TaskItemProps) {
+export function TaskItem({ task, onToggle, onPress, compact, variant = "default" }: TaskItemProps) {
   if (compact) {
     return (
       <Pressable
@@ -51,6 +52,55 @@ export function TaskItem({ task, onToggle, onPress, compact }: TaskItemProps) {
             />
           </View>
           <Text style={styles.homeCategory}>{task.category}</Text>
+        </View>
+      </Pressable>
+    );
+  }
+
+  if (variant === "list") {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [styles.listContainer, pressed && { opacity: 0.9 }]}
+      >
+        <Pressable onPress={onToggle} hitSlop={8} style={styles.checkbox}>
+          <View
+            style={[
+              styles.checkboxInner,
+              styles.listCheckbox,
+              task.completed && styles.checkboxChecked,
+            ]}
+          >
+            {task.completed ? (
+              <Ionicons name="checkmark" size={16} color="#fff" />
+            ) : null}
+          </View>
+        </Pressable>
+
+        <View style={styles.listContent}>
+          <Text
+            style={[styles.listTitle, task.completed && styles.titleCompleted]}
+            numberOfLines={2}
+          >
+            {task.title}
+          </Text>
+          <Text style={styles.listCategory}>{task.category}</Text>
+        </View>
+
+        <View style={styles.listRight}>
+          <View
+            style={[
+              styles.priorityBadge,
+              { backgroundColor: getPriorityColor(task.priority) + "20" },
+            ]}
+          >
+            <Text
+              style={[styles.priorityText, { color: getPriorityColor(task.priority) }]}
+            >
+              {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+            </Text>
+          </View>
+          {task.dueTime ? <Text style={styles.listTime}>{task.dueTime}</Text> : null}
         </View>
       </Pressable>
     );
@@ -358,6 +408,49 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.textMuted,
     marginTop: 4,
+  },
+  listContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    ...Shadow.sm,
+  },
+  listCheckbox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  listContent: {
+    flex: 1,
+    paddingTop: 2,
+    marginRight: Spacing.md,
+  },
+  listTitle: {
+    fontSize: FontSize.md,
+    fontWeight: "600",
+    color: Colors.text,
+    lineHeight: 20,
+  },
+  listCategory: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+  listRight: {
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    minHeight: 48,
+    gap: Spacing.sm,
+  },
+  listTime: {
+    fontSize: FontSize.sm,
+    color: Colors.textMuted,
+    fontWeight: "500",
   },
   progressTrack: {
     backgroundColor: Colors.borderLight,

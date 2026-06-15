@@ -9,6 +9,9 @@ type ScreenHeaderProps = {
   subtitle?: string;
   showBack?: boolean;
   onBack?: () => void;
+  leftIcon?: keyof typeof Ionicons.glyphMap;
+  onLeftPress?: () => void;
+  leftElement?: React.ReactNode;
   rightIcon?: keyof typeof Ionicons.glyphMap;
   onRightPress?: () => void;
   rightElement?: React.ReactNode;
@@ -20,6 +23,9 @@ export function ScreenHeader({
   subtitle,
   showBack,
   onBack,
+  leftIcon,
+  onLeftPress,
+  leftElement,
   rightIcon,
   onRightPress,
   rightElement,
@@ -36,13 +42,18 @@ export function ScreenHeader({
       ]}
     >
       <View style={styles.row}>
-        {showBack ? (
-          <Pressable onPress={onBack} style={styles.iconBtn} hitSlop={8}>
-            <Ionicons name="arrow-back" size={24} color={Colors.text} />
-          </Pressable>
-        ) : (
-          <View style={styles.iconPlaceholder} />
-        )}
+        {leftElement ??
+          (showBack ? (
+            <Pressable onPress={onBack} style={styles.iconBtn} hitSlop={8}>
+              <Ionicons name="arrow-back" size={24} color={Colors.text} />
+            </Pressable>
+          ) : leftIcon ? (
+            <Pressable onPress={onLeftPress} style={styles.iconBtn} hitSlop={8}>
+              <Ionicons name={leftIcon} size={26} color={Colors.text} />
+            </Pressable>
+          ) : (
+            <View style={styles.iconPlaceholder} />
+          ))}
 
         <View style={styles.center}>
           {title ? <Text style={styles.title}>{title}</Text> : null}

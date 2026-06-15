@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useState } from "react";
+import { router } from "expo-router";
+import { useMemo, useState } from "react";
 import {
+  Modal,
   Pressable,
-  ScrollView,
+  SectionList,
   StyleSheet,
   Text,
   TextInput,
@@ -13,12 +15,50 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { TaskItem } from "@/components/TaskItem";
 import { useApp } from "@/context/AppContext";
-import { Colors, FontSize, Radius, Spacing } from "@/constants/theme";
-import type { Priority } from "@/types";
+import { Colors, FontSize, Radius, Shadow, Spacing } from "@/constants/theme";
+import type { Priority, Task } from "@/types";
 
-const TODAY = "2024-05-21";
 const TABS = ["Today", "Upcoming", "Completed", "All"] as const;
 type Tab = (typeof TABS)[number];
+
+function todayIso() {
+  return new Date().toISOString().split("T")[0] ?? "";
+}
+
+function tomorrowIso() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split("T")[0] ?? "";
+}
+
+function formatDayMonth(iso: string) {
+  const d = new Date(iso + "T12:00:00");
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+}
+
+function sectionTitle(iso: string, today: string, tomorrow: string) {
+  if (iso === today) return `Today • ${formatDayMonth(iso)}`;
+  if (iso === tomorrow) return `Tomorrow • ${formatDayMonth(iso)}`;
+  const d = new Date(iso + "T12:00:00");
+  return d.toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+}
+
+function filterTasks(tasks: Task[], tab: Tab, today: string): Task[] {
+  switch (tab) {
+    case "Today":
+      return tasks.filter((t) => t.dueDate === today);
+    case "Upcoming":
+      return tasks.filter((t) => t.dueDate > today && !t.completed);
+    case "Completed":
+      return tasks.filter((t) => t.completed);
+    case "All":
+      return tasks;
+  }
+}
 
 export default function TasksScreen() {
   const insets = useSafeAreaInsets();
@@ -26,40 +66,64 @@ export default function TasksScreen() {
   const [activeTab, setActiveTab] = useState<Tab>("Today");
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
   const [filterPriority, setFilterPriority] = useState<Priority | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  const filtered = tasks
-    .filter((t) => {
-      if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
-      if (filterPriority && t.priority !== filterPriority) return false;
-      if (activeTab === "Today") return t.dueDate === TODAY;
-      if (activeTab === "Upcoming") return t.dueDate > TODAY && !t.completed;
-      if (activeTab === "Completed") return t.completed;
-      return true;
-    })
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const today = todayIso();
+  const tomorrow = tomorrowIso();
 
-  const grouped = filtered.reduce<Record<string, typeof filtered>>((acc, task) => {
-    const label =
-      task.dueDate === TODAY
-        ? "Today - 21 May"
-        : task.dueDate === "2024-05-22"
-          ? "Tomorrow - 22 May"
-          : task.dueDate;
-    if (!acc[label]) acc[label] = [];
-    acc[label].push(task);
-    return acc;
-  }, {});
+  const filtered = useMemo(() => {
+    return filterTasks(tasks, activeTab, today)
+      .filter((t) => {
+        if (search && !t.title.toLowerCase().includes(search.toLowerCase())) {
+          return false;
+        }
+        if (filterPriority && t.priority !== filterPriority) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const dateCmp = a.dueDate.localeCompare(b.dueDate);
+        if (dateCmp !== 0) return dateCmp;
+        return (a.dueTime ?? "").localeCompare(b.dueTime ?? "");
+      });
+  }, [tasks, activeTab, today, search, filterPriority]);
+
+  const sections = useMemo(() => {
+    const groups = new Map<string, Task[]>();
+    for (const task of filtered) {
+      const key = task.dueDate;
+      const list = groups.get(key) ?? [];
+      list.push(task);
+      groups.set(key, list);
+    }
+    return Array.from(groups.entries()).map(([date, data]) => ({
+      date,
+      title: sectionTitle(date, today, tomorrow),
+      data: collapsed[date] ? [] : data,
+    }));
+  }, [filtered, today, tomorrow, collapsed]);
+
+  const toggleSection = (date: string) => {
+    setCollapsed((prev) => ({ ...prev, [date]: !prev[date] }));
+  };
 
   return (
     <View style={styles.container}>
       <ScreenHeader
         title="Tasks"
-        rightIcon={showSearch ? "close" : "search"}
-        onRightPress={() => setShowSearch(!showSearch)}
+        leftIcon="menu"
+        onLeftPress={() => router.push("/(tabs)/settings")}
         rightElement={
           <View style={styles.headerActions}>
-            <Pressable onPress={() => setShowSearch(!showSearch)} hitSlop={8}>
+            <Pressable
+              onPress={() => {
+                setShowSearch((v) => !v);
+                if (showSearch) setSearch("");
+              }}
+              hitSlop={8}
+              style={styles.headerIconBtn}
+            >
               <Ionicons
                 name={showSearch ? "close" : "search"}
                 size={22}
@@ -67,21 +131,12 @@ export default function TasksScreen() {
               />
             </Pressable>
             <Pressable
-              onPress={() =>
-                setFilterPriority(
-                  filterPriority === "high"
-                    ? null
-                    : filterPriority === "medium"
-                      ? "high"
-                      : filterPriority === "low"
-                        ? "medium"
-                        : "low",
-                )
-              }
+              onPress={() => setShowFilter(true)}
               hitSlop={8}
+              style={styles.headerIconBtn}
             >
               <Ionicons
-                name="filter"
+                name="options-outline"
                 size={22}
                 color={filterPriority ? Colors.primary : Colors.text}
               />
@@ -104,12 +159,7 @@ export default function TasksScreen() {
         </View>
       ) : null}
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.tabs}
-        contentContainerStyle={styles.tabsContent}
-      >
+      <View style={styles.tabs}>
         {TABS.map((tab) => (
           <Pressable
             key={tab}
@@ -121,31 +171,92 @@ export default function TasksScreen() {
             </Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </View>
 
-      <ScrollView
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={[
           styles.list,
           { paddingBottom: insets.bottom + 120 },
+          sections.length === 0 && styles.listEmpty,
         ]}
         showsVerticalScrollIndicator={false}
-      >
-        {Object.entries(grouped).map(([date, dateTasks]) => (
-          <View key={date} style={styles.group}>
-            <Text style={styles.groupTitle}>{date}</Text>
-            {dateTasks.map((task) => (
-              <TaskItem
-                key={task.id}
-                task={task}
-                onToggle={() => toggleTask(task.id)}
-              />
-            ))}
+        stickySectionHeadersEnabled={false}
+        renderSectionHeader={({ section }) => (
+          <Pressable
+            onPress={() => toggleSection(section.date)}
+            style={styles.sectionHeader}
+          >
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <Ionicons
+              name={collapsed[section.date] ? "chevron-down" : "chevron-up"}
+              size={18}
+              color={Colors.textMuted}
+            />
+          </Pressable>
+        )}
+        renderItem={({ item }) => (
+          <TaskItem
+            task={item}
+            variant="list"
+            onToggle={() => toggleTask(item.id)}
+          />
+        )}
+        ListEmptyComponent={
+          <View style={styles.emptyWrap}>
+            <Ionicons name="checkbox-outline" size={48} color={Colors.textMuted} />
+            <Text style={styles.emptyTitle}>No tasks found</Text>
+            <Text style={styles.emptySubtitle}>
+              {activeTab === "Completed"
+                ? "Completed tasks will appear here"
+                : "Tap + to add a new task"}
+            </Text>
           </View>
-        ))}
-        {filtered.length === 0 ? (
-          <Text style={styles.empty}>No tasks found</Text>
-        ) : null}
-      </ScrollView>
+        }
+      />
+
+      <Modal visible={showFilter} transparent animationType="fade">
+        <Pressable style={styles.filterOverlay} onPress={() => setShowFilter(false)}>
+          <Pressable style={styles.filterSheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.filterTitle}>Filter by priority</Text>
+            {(["high", "medium", "low"] as Priority[]).map((p) => (
+              <Pressable
+                key={p}
+                onPress={() => {
+                  setFilterPriority(filterPriority === p ? null : p);
+                  setShowFilter(false);
+                }}
+                style={[
+                  styles.filterOption,
+                  filterPriority === p && styles.filterOptionActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterOptionText,
+                    filterPriority === p && styles.filterOptionTextActive,
+                  ]}
+                >
+                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                </Text>
+                {filterPriority === p ? (
+                  <Ionicons name="checkmark" size={18} color={Colors.primary} />
+                ) : null}
+              </Pressable>
+            ))}
+            <Pressable
+              onPress={() => {
+                setFilterPriority(null);
+                setShowFilter(false);
+              }}
+              style={styles.filterClear}
+            >
+              <Text style={styles.filterClearText}>Clear filter</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -157,9 +268,15 @@ const styles = StyleSheet.create({
   },
   headerActions: {
     flexDirection: "row",
-    gap: Spacing.lg,
+    gap: Spacing.xs,
     width: 80,
     justifyContent: "flex-end",
+  },
+  headerIconBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
   },
   searchBox: {
     flexDirection: "row",
@@ -180,28 +297,22 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   tabs: {
-    flexGrow: 0,
-    marginBottom: Spacing.md,
-  },
-  tabsContent: {
+    flexDirection: "row",
     paddingHorizontal: Spacing.lg,
-    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+    gap: Spacing.md,
   },
   tab: {
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.sm + 2,
     borderRadius: Radius.full,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   tabActive: {
     backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
   },
   tabText: {
     fontSize: FontSize.sm,
-    fontWeight: "500",
+    fontWeight: "600",
     color: Colors.textSecondary,
   },
   tabTextActive: {
@@ -210,20 +321,83 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: Spacing.lg,
   },
-  group: {
-    marginBottom: Spacing.xl,
+  listEmpty: {
+    flexGrow: 1,
   },
-  groupTitle: {
-    fontSize: FontSize.sm,
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  sectionTitle: {
+    fontSize: FontSize.md,
     fontWeight: "600",
-    color: Colors.textSecondary,
-    marginBottom: Spacing.md,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    color: Colors.text,
   },
-  empty: {
-    textAlign: "center",
+  emptyWrap: {
+    alignItems: "center",
+    paddingTop: Spacing.xxxl * 2,
+    gap: Spacing.sm,
+  },
+  emptyTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: "600",
+    color: Colors.text,
+    marginTop: Spacing.md,
+  },
+  emptySubtitle: {
+    fontSize: FontSize.sm,
     color: Colors.textMuted,
-    marginTop: Spacing.xxxl,
+    textAlign: "center",
+  },
+  filterOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: "center",
+    padding: Spacing.xl,
+  },
+  filterSheet: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    ...Shadow.md,
+  },
+  filterTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: "700",
+    color: Colors.text,
+    marginBottom: Spacing.lg,
+  },
+  filterOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.md,
+    marginBottom: Spacing.xs,
+  },
+  filterOptionActive: {
+    backgroundColor: Colors.primaryMuted,
+  },
+  filterOptionText: {
+    fontSize: FontSize.md,
+    color: Colors.text,
+  },
+  filterOptionTextActive: {
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  filterClear: {
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  filterClearText: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontWeight: "500",
   },
 });
