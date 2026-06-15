@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { goBackOrWelcome } from "@/lib/auth-navigation";
+import { validateEmail, validatePassword } from "@/lib/auth-validation";
 import { useApp } from "@/context/AppContext";
 import { Colors, FontSize, Spacing } from "@/constants/theme";
 
@@ -26,14 +28,25 @@ export default function LoginScreen() {
   const [localError, setLocalError] = useState<string | null>(null);
 
   const handleLogin = async () => {
-    if (!email || !password) return;
-    if (!isConfigured) {
-      setLocalError("Appwrite is not configured. Add your keys to .env — see docs/APPWRITE_SETUP.md");
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setLocalError(emailError);
       return;
     }
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setLocalError(passwordError);
+      return;
+    }
+    if (!isConfigured) {
+      setLocalError("Appwrite is not configured. Add your keys to .env");
+      return;
+    }
+
     setLoading(true);
     setLocalError(null);
     clearAuthError();
+
     try {
       await login(email, password);
       router.replace("/(tabs)");
@@ -51,7 +64,7 @@ export default function LoginScreen() {
       style={styles.flex}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScreenHeader title="Welcome Back" showBack onBack={() => router.back()} />
+      <ScreenHeader title="Welcome Back" showBack onBack={goBackOrWelcome} />
       <ScrollView
         contentContainerStyle={[
           styles.container,
@@ -72,6 +85,7 @@ export default function LoginScreen() {
           placeholder="mark@example.com"
           keyboardType="email-address"
           autoCapitalize="none"
+          autoComplete="email"
         />
         <Input
           label="Password"
@@ -79,29 +93,21 @@ export default function LoginScreen() {
           onChangeText={setPassword}
           placeholder="••••••••"
           secureTextEntry
+          autoCapitalize="none"
+          autoComplete="password"
         />
 
-        <Pressable style={styles.forgot}>
+        <Pressable
+          style={styles.forgot}
+          onPress={() => router.push("/(auth)/forgot-password")}
+        >
           <Text style={styles.forgotText}>Forgot password?</Text>
         </Pressable>
 
         <Button
           title={loading ? "Signing in..." : "Login"}
           onPress={handleLogin}
-          disabled={loading || !email || !password}
-        />
-
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <Button
-          title="Continue with Google"
-          variant="secondary"
-          icon="logo-google"
-          onPress={handleLogin}
+          disabled={loading || !email.trim() || !password}
         />
 
         <Pressable onPress={() => router.push("/(auth)/signup")} style={styles.link}>
@@ -129,21 +135,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontSize: FontSize.sm,
     fontWeight: "500",
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: Spacing.xl,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.border,
-  },
-  dividerText: {
-    marginHorizontal: Spacing.lg,
-    color: Colors.textMuted,
-    fontSize: FontSize.sm,
   },
   link: {
     alignItems: "center",

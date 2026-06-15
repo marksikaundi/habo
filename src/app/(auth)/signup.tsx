@@ -14,6 +14,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { goBackOrWelcome } from "@/lib/auth-navigation";
+import {
+  validateEmail,
+  validateName,
+  validatePassword,
+  validatePasswordMatch,
+} from "@/lib/auth-validation";
 import { useApp } from "@/context/AppContext";
 import { Colors, FontSize, Spacing } from "@/constants/theme";
 
@@ -23,18 +30,40 @@ export default function SignUpScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const handleSignup = async () => {
-    if (!name || !email || !password) return;
-    if (!isConfigured) {
-      setLocalError("Appwrite is not configured. Add your keys to .env — see docs/APPWRITE_SETUP.md");
+    const nameError = validateName(name);
+    if (nameError) {
+      setLocalError(nameError);
       return;
     }
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setLocalError(emailError);
+      return;
+    }
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setLocalError(passwordError);
+      return;
+    }
+    const matchError = validatePasswordMatch(password, confirmPassword);
+    if (matchError) {
+      setLocalError(matchError);
+      return;
+    }
+    if (!isConfigured) {
+      setLocalError("Appwrite is not configured. Add your keys to .env");
+      return;
+    }
+
     setLoading(true);
     setLocalError(null);
     clearAuthError();
+
     try {
       await signup(name, email, password);
       router.replace("/(tabs)");
@@ -55,7 +84,7 @@ export default function SignUpScreen() {
       <ScreenHeader
         title="Create Account"
         showBack
-        onBack={() => router.back()}
+        onBack={goBackOrWelcome}
       />
       <ScrollView
         contentContainerStyle={[
@@ -70,7 +99,14 @@ export default function SignUpScreen() {
           </View>
         ) : null}
 
-        <Input label="Full Name" value={name} onChangeText={setName} placeholder="Mark Johnson" />
+        <Input
+          label="Full Name"
+          value={name}
+          onChangeText={setName}
+          placeholder="Mark Johnson"
+          autoCapitalize="words"
+          autoComplete="name"
+        />
         <Input
           label="Email Address"
           value={email}
@@ -78,35 +114,40 @@ export default function SignUpScreen() {
           placeholder="mark@example.com"
           keyboardType="email-address"
           autoCapitalize="none"
+          autoComplete="email"
         />
         <Input
           label="Password"
           value={password}
           onChangeText={setPassword}
-          placeholder="••••••••"
+          placeholder="At least 8 characters"
           secureTextEntry
+          autoCapitalize="none"
+          autoComplete="new-password"
+        />
+        <Input
+          label="Confirm Password"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          placeholder="Re-enter password"
+          secureTextEntry
+          autoCapitalize="none"
+          autoComplete="new-password"
         />
 
         <Button
           title={loading ? "Creating..." : "Sign Up"}
           onPress={handleSignup}
-          disabled={loading || !name || !email || !password}
+          disabled={
+            loading ||
+            !name.trim() ||
+            !email.trim() ||
+            !password ||
+            !confirmPassword
+          }
         />
 
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <Button
-          title="Continue with Google"
-          variant="secondary"
-          icon="logo-google"
-          onPress={handleSignup}
-        />
-
-        <Pressable onPress={() => router.push("/(auth)/login")} style={styles.link}>
+        <Pressable onPress={() => router.replace("/(auth)/login")} style={styles.link}>
           <Text style={styles.linkText}>
             Already have an account? <Text style={styles.linkBold}>Login</Text>
           </Text>
@@ -121,21 +162,6 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.lg,
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: Spacing.xl,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.border,
-  },
-  dividerText: {
-    marginHorizontal: Spacing.lg,
-    color: Colors.textMuted,
-    fontSize: FontSize.sm,
   },
   link: {
     alignItems: "center",

@@ -11,6 +11,7 @@ type InputProps = {
   multiline?: boolean;
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
   keyboardType?: "default" | "email-address";
+  autoComplete?: "email" | "password" | "new-password" | "name" | "off";
 };
 
 export function Input({
@@ -22,6 +23,7 @@ export function Input({
   multiline,
   autoCapitalize,
   keyboardType,
+  autoComplete,
 }: InputProps) {
   return (
     <View style={styles.container}>
@@ -36,6 +38,7 @@ export function Input({
         multiline={multiline}
         autoCapitalize={autoCapitalize}
         keyboardType={keyboardType}
+        autoComplete={autoComplete}
       />
     </View>
   );

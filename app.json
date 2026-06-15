@@ -9,10 +9,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.habora.app"
+      "bundleIdentifier": "com.habora.habo"
     },
     "android": {
-      "package": "com.habora.app",
+      "package": "com.habora.habo",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -46,7 +46,7 @@
       "appwriteEndpoint": "",
       "appwriteProjectId": "",
       "appwriteDatabaseId": "habora",
-      "appwritePlatform": "com.habora.app"
+      "appwritePlatform": "com.habora.habo"
     }
   }
 }

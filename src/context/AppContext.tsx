@@ -19,10 +19,12 @@ import {
   type UserStats,
 } from "@/services/appwrite-data";
 import {
+  completePasswordRecovery,
   getAppwriteErrorMessage,
   getCurrentSessionUser,
   loginWithEmail,
   logoutCurrentSession,
+  requestPasswordRecovery,
   signupWithEmail,
 } from "@/services/appwrite-auth";
 import type { Goal, Note, Notification, Priority, Task, User } from "@/types";
@@ -44,6 +46,8 @@ type AppState = {
   clearAuthError: () => void;
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  completePasswordReset: (userId: string, secret: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
   toggleTask: (id: string) => Promise<void>;
@@ -87,15 +91,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const clearAuthError = useCallback(() => setAuthError(null), []);
 
   const loadUserData = useCallback(async (userId: string) => {
-    const data = await fetchUserData(userId);
-    setTasks(data.tasks);
-    setGoals(data.goals);
-    setNotes(data.notes);
-    setNotifications(data.notifications);
-    applyStats(
-      { setFocusMinutesToday, setFocusStreak, setXp, setLevel },
-      data.stats,
-    );
+    try {
+      const data = await fetchUserData(userId);
+      setTasks(data.tasks);
+      setGoals(data.goals);
+      setNotes(data.notes);
+      setNotifications(data.notifications);
+      applyStats(
+        { setFocusMinutesToday, setFocusStreak, setXp, setLevel },
+        data.stats,
+      );
+    } catch (error) {
+      console.warn("Failed to load user data:", getAppwriteErrorMessage(error));
+      setTasks([]);
+      setGoals([]);
+      setNotes([]);
+      setNotifications([]);
+    }
   }, []);
 
   const refreshData = useCallback(async () => {
@@ -158,6 +170,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     },
     [loadUserData],
+  );
+
+  const requestPasswordReset = useCallback(async (email: string) => {
+    setAuthError(null);
+    try {
+      await requestPasswordRecovery(email);
+    } catch (error) {
+      setAuthError(getAppwriteErrorMessage(error));
+      throw error;
+    }
+  }, []);
+
+  const completePasswordReset = useCallback(
+    async (userId: string, secret: string, password: string) => {
+      setAuthError(null);
+      try {
+        await completePasswordRecovery(userId, secret, password);
+      } catch (error) {
+        setAuthError(getAppwriteErrorMessage(error));
+        throw error;
+      }
+    },
+    [],
   );
 
   const logout = useCallback(async () => {
@@ -252,6 +287,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearAuthError,
       login,
       signup,
+      requestPasswordReset,
+      completePasswordReset,
       logout,
       completeOnboarding,
       toggleTask,
@@ -278,6 +315,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearAuthError,
       login,
       signup,
+      requestPasswordReset,
+      completePasswordReset,
       logout,
       completeOnboarding,
       toggleTask,

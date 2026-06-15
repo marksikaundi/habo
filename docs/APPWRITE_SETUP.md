@@ -14,8 +14,8 @@ In Appwrite Console → your project → **Settings** → **Platforms**:
 
 | Platform | Value |
 |----------|-------|
-| **iOS** | Bundle ID: `com.habora.app` |
-| **Android** | Package name: `com.habora.app` |
+| **iOS** | Bundle ID: `com.habora.habo` |
+| **Android** | Package name: `com.habora.habo` |
 
 These must match `app.json` in this repo.
 
@@ -23,6 +23,17 @@ These must match `app.json` in this repo.
 
 1. Go to **Auth** → **Settings**.
 2. Enable **Email/Password** sign-in.
+3. Under **Auth** → **Security**, ensure password recovery is enabled.
+
+### Password reset redirect URL
+
+Add this redirect URL in Appwrite Console → **Auth** → **Settings** → **URLs**:
+
+```
+habo://reset-password
+```
+
+This must match the deep link the app sends when requesting a password reset. Users open the email link on their device to land on the reset password screen.
 
 ## 4. Create the database
 

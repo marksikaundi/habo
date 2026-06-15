@@ -44,7 +44,7 @@ export const appwriteConfig = {
     (Platform.OS === "ios"
       ? Constants.expoConfig?.ios?.bundleIdentifier
       : Constants.expoConfig?.android?.package) ??
-    "com.habora.app",
+    "com.habora.habo",
 };
 
 export function isAppwriteConfigured(): boolean {
