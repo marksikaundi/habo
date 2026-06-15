@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { CalendarPicker } from "@/components/CalendarPicker";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { useApp } from "@/context/AppContext";
 import {
@@ -53,15 +54,26 @@ export default function CalendarScreen() {
   const { tasks } = useApp();
   const today = useMemo(() => new Date(), []);
   const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [showCalendar, setShowCalendar] = useState(false);
 
   const weekDays = useMemo(() => getWeekDays(selectedDate), [selectedDate]);
   const selectedIso = toLocalIso(selectedDate);
   const timelineHours = getTimelineHours();
 
+  const datesWithTasks = useMemo(() => {
+    const dates = new Set<string>();
+    for (const task of tasks) {
+      if (task.dueTime) {
+        dates.add(task.dueDate);
+      }
+    }
+    return dates;
+  }, [tasks]);
+
   const dayTasks = useMemo(
     () =>
       tasks
-        .filter((t) => t.dueDate === selectedIso && t.dueTime && !t.completed)
+        .filter((t) => t.dueDate === selectedIso && t.dueTime)
         .sort((a, b) => (a.dueTime ?? "").localeCompare(b.dueTime ?? "")),
     [tasks, selectedIso],
   );
@@ -76,7 +88,7 @@ export default function CalendarScreen() {
         onLeftPress={() => router.push("/(tabs)/settings")}
         rightElement={
           <Pressable
-            onPress={() => setSelectedDate(new Date())}
+            onPress={() => setShowCalendar(true)}
             style={styles.calendarIconBtn}
             hitSlop={8}
           >
@@ -131,17 +143,24 @@ export default function CalendarScreen() {
           {timelineHours.map((hour, index) => {
             const hourTasks = tasksForHour(dayTasks, hour);
             const isLast = index === timelineHours.length - 1;
+            const hasTasks = hourTasks.length > 0;
 
             return (
-              <View key={hour} style={styles.timeRow}>
+              <View key={hour} style={[styles.timeRow, !hasTasks && styles.timeRowCompact]}>
                 <Text style={styles.timeLabel}>{formatHourLabel(hour)}</Text>
 
                 <View style={styles.timelineTrack}>
-                  <View style={[styles.timelineLine, isLast && styles.timelineLineLast]} />
+                  <View
+                    style={[
+                      styles.timelineLine,
+                      !hasTasks && styles.timelineLineCompact,
+                      isLast && styles.timelineLineLast,
+                    ]}
+                  />
                 </View>
 
                 <View style={styles.slotContent}>
-                  {hourTasks.length > 0 ? (
+                  {hasTasks ? (
                     hourTasks.map((task) => {
                       const catStyle = getCategoryStyle(task.category);
                       return (
@@ -150,21 +169,35 @@ export default function CalendarScreen() {
                           style={({ pressed }) => [
                             styles.taskCard,
                             { borderColor: catStyle.borderColor },
+                            task.completed && styles.taskCardCompleted,
                             pressed && { opacity: 0.92 },
                           ]}
                         >
                           <LinearGradient
-                            colors={catStyle.colors}
+                            colors={
+                              task.completed
+                                ? (["#F3F4F6", "#E5E7EB"] as const)
+                                : catStyle.colors
+                            }
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
                             style={styles.taskCardGradient}
                           >
                             <View style={styles.taskCardBody}>
                               <View style={styles.taskCardText}>
-                                <Text style={styles.taskTitle} numberOfLines={1}>
+                                <Text
+                                  style={[
+                                    styles.taskTitle,
+                                    task.completed && styles.taskTitleCompleted,
+                                  ]}
+                                  numberOfLines={1}
+                                >
                                   {task.title}
                                 </Text>
-                                <Text style={styles.taskCategory}>{task.category}</Text>
+                                <Text style={styles.taskCategory}>
+                                  {task.category}
+                                  {task.completed ? " · Done" : ""}
+                                </Text>
                               </View>
                               <Ionicons
                                 name="chevron-forward"
@@ -187,11 +220,19 @@ export default function CalendarScreen() {
           {dayTasks.length === 0 ? (
             <View style={styles.emptyDay}>
               <Ionicons name="calendar-outline" size={40} color={Colors.textMuted} />
-              <Text style={styles.emptyDayText}>No scheduled tasks for this day</Text>
+              <Text style={styles.emptyDayText}>Nothing scheduled for this day</Text>
             </View>
           ) : null}
         </View>
       </ScrollView>
+
+      <CalendarPicker
+        visible={showCalendar}
+        selectedDate={selectedDate}
+        datesWithTasks={datesWithTasks}
+        onClose={() => setShowCalendar(false)}
+        onSelectDate={setSelectedDate}
+      />
     </View>
   );
 }
@@ -290,14 +331,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     minHeight: 72,
   },
+  timeRowCompact: {
+    minHeight: 44,
+  },
   timeLabel: {
     width: 52,
-    fontSize: FontSize.xs,
+    fontSize: 10,
     color: Colors.textMuted,
-    fontWeight: "500",
+    fontWeight: "600",
     paddingTop: 2,
     textAlign: "right",
     paddingRight: Spacing.sm,
+    fontVariant: ["tabular-nums"],
   },
   timelineTrack: {
     width: 20,
@@ -309,6 +354,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border,
     minHeight: 72,
   },
+  timelineLineCompact: {
+    minHeight: 44,
+  },
   timelineLineLast: {
     minHeight: 48,
   },
@@ -319,13 +367,16 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   emptySlot: {
-    height: 56,
+    height: 36,
   },
   taskCard: {
     borderRadius: Radius.md,
     overflow: "hidden",
     borderWidth: 1,
     ...Shadow.sm,
+  },
+  taskCardCompleted: {
+    opacity: 0.85,
   },
   taskCardGradient: {
     padding: Spacing.md,
@@ -344,6 +395,10 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     fontWeight: "600",
     color: Colors.text,
+  },
+  taskTitleCompleted: {
+    textDecorationLine: "line-through",
+    color: Colors.textSecondary,
   },
   taskCategory: {
     fontSize: FontSize.sm,

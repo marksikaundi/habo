@@ -62,18 +62,49 @@ export function parseTimeToHour(time: string): number | null {
 }
 
 export function formatHourLabel(hour24: number): string {
-  if (hour24 === 0) return "12 AM";
-  if (hour24 < 12) return `${hour24} AM`;
-  if (hour24 === 12) return "12 PM";
-  return `${hour24 - 12} PM`;
+  return `${String(hour24).padStart(2, "0")}:00`;
 }
 
-export const TIMELINE_START_HOUR = 7;
-export const TIMELINE_END_HOUR = 21;
+export const TIMELINE_START_HOUR = 0;
+export const TIMELINE_END_HOUR = 23;
 
 export function getTimelineHours(): number[] {
   return Array.from(
     { length: TIMELINE_END_HOUR - TIMELINE_START_HOUR + 1 },
     (_, i) => i + TIMELINE_START_HOUR,
   );
+}
+
+export function getMonthGrid(anchor: Date): Date[][] {
+  const year = anchor.getFullYear();
+  const month = anchor.getMonth();
+  const firstDay = new Date(year, month, 1, 12, 0, 0, 0);
+  const startOffset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+  const gridStart = new Date(firstDay);
+  gridStart.setDate(firstDay.getDate() - startOffset);
+
+  const weeks: Date[][] = [];
+  const cursor = new Date(gridStart);
+
+  for (let w = 0; w < 6; w++) {
+    const week: Date[] = [];
+    for (let d = 0; d < 7; d++) {
+      week.push(new Date(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    weeks.push(week);
+  }
+
+  return weeks;
+}
+
+export function isSameMonth(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+}
+
+export function addMonths(date: Date, count: number): Date {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + count, 1);
+  next.setHours(12, 0, 0, 0);
+  return next;
 }
