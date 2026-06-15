@@ -1,26 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Circle } from "react-native-svg";
+import { useEffect, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { useApp } from "@/context/AppContext";
 import { Colors, FontSize, Spacing } from "@/constants/theme";
 
 const DEFAULT_SECONDS = 25 * 60;
-const RING_SIZE = 260;
-const STROKE = 8;
-const RADIUS = (RING_SIZE - STROKE) / 2;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export default function FocusScreen() {
-  const insets = useSafeAreaInsets();
   const { focusStreak, tasks } = useApp();
   const [seconds, setSeconds] = useState(DEFAULT_SECONDS);
   const [running, setRunning] = useState(false);
   const [isBreak, setIsBreak] = useState(false);
-  const progress = useRef(new Animated.Value(0)).current;
 
   const linkedTask = tasks.find((t) => !t.completed);
 
@@ -39,23 +31,16 @@ export default function FocusScreen() {
     return () => clearInterval(interval);
   }, [running, isBreak]);
 
-  const elapsed = isBreak
-    ? 1 - seconds / (5 * 60)
-    : 1 - seconds / DEFAULT_SECONDS;
+  const total = isBreak ? 5 * 60 : DEFAULT_SECONDS;
+  const elapsed = 1 - seconds / total;
 
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   const timeStr = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 
-  const strokeDashoffset = CIRCUMFERENCE * (1 - elapsed);
-
   return (
     <View style={[styles.container, running && styles.dimmed]}>
-      <ScreenHeader
-        title="Focus Mode"
-        rightIcon="settings-outline"
-        transparent
-      />
+      <ScreenHeader title="Focus Mode" rightIcon="settings-outline" transparent />
 
       <View style={styles.content}>
         {linkedTask ? (
@@ -70,30 +55,23 @@ export default function FocusScreen() {
         <Text style={styles.modeLabel}>{isBreak ? "Break Time" : "Focus Session"}</Text>
 
         <View style={styles.timerContainer}>
-          <Svg width={RING_SIZE} height={RING_SIZE}>
-            <Circle
-              cx={RING_SIZE / 2}
-              cy={RING_SIZE / 2}
-              r={RADIUS}
-              stroke={Colors.borderLight}
-              strokeWidth={STROKE}
-              fill="none"
+          <View style={styles.ringOuter}>
+            <View
+              style={[
+                styles.ringProgress,
+                {
+                  borderColor: isBreak ? Colors.success : Colors.primary,
+                  borderTopColor: elapsed > 0.25 ? (isBreak ? Colors.success : Colors.primary) : Colors.borderLight,
+                  borderRightColor: elapsed > 0.5 ? (isBreak ? Colors.success : Colors.primary) : Colors.borderLight,
+                  borderBottomColor: elapsed > 0.75 ? (isBreak ? Colors.success : Colors.primary) : Colors.borderLight,
+                  borderLeftColor: elapsed > 0 ? (isBreak ? Colors.success : Colors.primary) : Colors.borderLight,
+                },
+              ]}
             />
-            <Circle
-              cx={RING_SIZE / 2}
-              cy={RING_SIZE / 2}
-              r={RADIUS}
-              stroke={isBreak ? Colors.success : Colors.primary}
-              strokeWidth={STROKE}
-              fill="none"
-              strokeDasharray={CIRCUMFERENCE}
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
-              rotation="-90"
-              origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
-            />
-          </Svg>
-          <Text style={styles.timer}>{timeStr}</Text>
+            <View style={styles.ringInner}>
+              <Text style={styles.timer}>{timeStr}</Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.controls}>
@@ -108,11 +86,7 @@ export default function FocusScreen() {
             onPress={() => setRunning(!running)}
             style={[styles.playBtn, running && styles.playBtnActive]}
           >
-            <Ionicons
-              name={running ? "pause" : "play"}
-              size={36}
-              color="#fff"
-            />
+            <Ionicons name={running ? "pause" : "play"} size={36} color="#fff" />
           </Pressable>
 
           <Pressable
@@ -128,9 +102,7 @@ export default function FocusScreen() {
         </View>
 
         <View style={styles.streak}>
-          <Text style={styles.streakText}>
-            Focus Streak 🔥 {focusStreak} days
-          </Text>
+          <Text style={styles.streakText}>Focus Streak 🔥 {focusStreak} days</Text>
         </View>
       </View>
     </View>
@@ -173,12 +145,30 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   timerContainer: {
-    alignItems: "center",
-    justifyContent: "center",
     marginBottom: Spacing.xxxl,
   },
-  timer: {
+  ringOuter: {
+    width: 260,
+    height: 260,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ringProgress: {
     position: "absolute",
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    borderWidth: 8,
+  },
+  ringInner: {
+    width: 230,
+    height: 230,
+    borderRadius: 115,
+    backgroundColor: Colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timer: {
     fontSize: 48,
     fontWeight: "300",
     color: Colors.text,

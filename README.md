@@ -1,56 +1,73 @@
-# Welcome to your Expo app 👋
+# Habora — Productivity App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Plan. Focus. Achieve.
+
+A production-style productivity mobile app built with **Expo SDK 56** and **Expo Router**. Combines task management, focus sessions, goals, notes, analytics, and gamification in a clean purple-themed UI.
 
 ## Get started
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Open in Expo Go, iOS Simulator, or Android Emulator.
 
-### Other setup steps
+## App flow
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+| Screen | Route |
+|--------|-------|
+| Splash | `/` |
+| Welcome / Onboarding | `/(auth)/welcome` |
+| Sign Up | `/(auth)/signup` |
+| Login | `/(auth)/login` |
+| Home Dashboard | `/(tabs)` |
+| Tasks | `/(tabs)/tasks` |
+| Calendar | `/(tabs)/calendar` |
+| Focus Mode | `/(tabs)/focus` |
+| Settings | `/(tabs)/settings` |
+| Add Task (modal) | `/add-task` |
+| Goals | `/goals` |
+| Notes | `/notes` |
+| Notifications | `/notifications` |
+| Analytics | `/analytics` |
+| Gamification | `/gamification` |
+| Collaboration | `/collaboration` |
 
-## Learn more
+## Features
 
-To learn more about developing your project with Expo, look at the following resources:
+- **Bottom tab navigation** — Home, Tasks, Calendar, Focus, Settings
+- **Floating action button** — Quick add task from any tab
+- **Auth flow** — Welcome carousel, sign up, login (persisted with AsyncStorage)
+- **Task management** — Tabs, search, priority filter, swipe-to-complete
+- **Focus mode** — Pomodoro timer with break sessions and streak counter
+- **Goals & notes** — Progress tracking and tagged notes
+- **Analytics** — Productivity score, focus time, completion charts
+- **Gamification** — XP, levels, badges, daily challenges
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Project structure
 
-## Join the community
+```
+src/
+├── app/           # Expo Router screens
+├── components/    # Shared UI (Button, TaskItem, ScreenHeader, etc.)
+├── constants/     # Theme tokens and mock data
+├── context/       # App state (tasks, goals, auth)
+└── types/         # TypeScript types
+```
 
-Join our community of developers creating universal apps.
+## Tech stack
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- Expo 56 / React Native 0.85
+- Expo Router (file-based routing)
+- TypeScript (strict)
+- @expo/vector-icons
+- expo-linear-gradient
+- @react-native-async-storage/async-storage
+
+## Next steps
+
+- Connect a backend (e.g. Convex) for real-time sync
+- Add Clerk authentication
+- Push notifications for task reminders
+- Haptic feedback and sound alerts in Focus mode
