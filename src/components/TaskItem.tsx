@@ -13,6 +13,49 @@ type TaskItemProps = {
 };
 
 export function TaskItem({ task, onToggle, onPress, compact }: TaskItemProps) {
+  if (compact) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [styles.homeContainer, pressed && { opacity: 0.9 }]}
+      >
+        <Pressable onPress={onToggle} hitSlop={8} style={styles.checkbox}>
+          <View
+            style={[
+              styles.checkboxInner,
+              task.completed && styles.checkboxChecked,
+            ]}
+          >
+            {task.completed ? (
+              <Ionicons name="checkmark" size={14} color="#fff" />
+            ) : null}
+          </View>
+        </Pressable>
+
+        <View style={styles.homeContent}>
+          <View style={styles.homeTopRow}>
+            <Text
+              style={[styles.homeTitle, task.completed && styles.titleCompleted]}
+              numberOfLines={1}
+            >
+              {task.title}
+            </Text>
+            {task.dueTime ? (
+              <Text style={styles.homeTime}>{task.dueTime}</Text>
+            ) : null}
+            <View
+              style={[
+                styles.priorityDot,
+                { backgroundColor: getPriorityColor(task.priority) },
+              ]}
+            />
+          </View>
+          <Text style={styles.homeCategory}>{task.category}</Text>
+        </View>
+      </Pressable>
+    );
+  }
+
   return (
     <Pressable
       onPress={onPress}
@@ -256,29 +299,70 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     flexDirection: "row",
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
-    padding: Spacing.xl,
-    ...Shadow.md,
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    ...Shadow.sm,
   },
   summaryItem: {
     flex: 1,
     alignItems: "center",
   },
   summaryValue: {
-    fontSize: FontSize.xxl,
+    fontSize: 28,
     fontWeight: "700",
-    color: "#fff",
+    color: Colors.text,
+    letterSpacing: -0.5,
   },
   summaryLabel: {
     fontSize: FontSize.sm,
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 4,
+    color: Colors.textSecondary,
+    marginTop: 6,
   },
   summaryDivider: {
     width: 1,
-    backgroundColor: "rgba(255,255,255,0.3)",
+    backgroundColor: Colors.border,
     marginVertical: 4,
+  },
+  homeContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    ...Shadow.sm,
+  },
+  homeContent: {
+    flex: 1,
+    paddingTop: 2,
+  },
+  homeTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  homeTitle: {
+    flex: 1,
+    fontSize: FontSize.md,
+    fontWeight: "600",
+    color: Colors.text,
+  },
+  homeTime: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  homeCategory: {
+    fontSize: FontSize.sm,
+    color: Colors.textMuted,
+    marginTop: 4,
+  },
+  priorityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   progressTrack: {
     backgroundColor: Colors.borderLight,
