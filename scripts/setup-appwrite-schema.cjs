@@ -25,6 +25,14 @@ const COLLECTIONS = {
     process.env.EXPO_PUBLIC_APPWRITE_COLLECTION_NOTIFICATIONS ?? "notifications",
   user_stats:
     process.env.EXPO_PUBLIC_APPWRITE_COLLECTION_USER_STATS ?? "user_stats",
+  workspaces:
+    process.env.EXPO_PUBLIC_APPWRITE_COLLECTION_WORKSPACES ?? "workspaces",
+  workspace_members:
+    process.env.EXPO_PUBLIC_APPWRITE_COLLECTION_WORKSPACE_MEMBERS ?? "workspace_members",
+  workspace_activity:
+    process.env.EXPO_PUBLIC_APPWRITE_COLLECTION_WORKSPACE_ACTIVITY ?? "workspace_activity",
+  workspace_tasks:
+    process.env.EXPO_PUBLIC_APPWRITE_COLLECTION_WORKSPACE_TASKS ?? "workspace_tasks",
 };
 
 function sleep(ms) {
@@ -37,6 +45,14 @@ function isAlreadyExists(error) {
     error?.type === "attribute_already_exists" ||
     error?.type === "index_already_exists" ||
     String(error?.message ?? "").toLowerCase().includes("already")
+  );
+}
+
+function isAttributeLimit(error) {
+  const message = String(error?.message ?? "").toLowerCase();
+  return (
+    message.includes("maximum number") ||
+    message.includes("attribute") && message.includes("reached")
   );
 }
 
@@ -54,6 +70,10 @@ async function ensureString(db, collectionId, key, required = false, size = 255)
   } catch (error) {
     if (isAlreadyExists(error)) {
       console.log(`    = string  ${key} (exists)`);
+      return;
+    }
+    if (isAttributeLimit(error)) {
+      console.log(`    ! string  ${key} (skipped — collection attribute limit reached)`);
       return;
     }
     throw error;
@@ -163,10 +183,41 @@ async function ensureCollectionPermissions(db, collectionId) {
   console.log(`    ✓ permissions updated (users + document security)`);
 }
 
-async function setupCollection(db, collectionId, setupFn) {
+async function ensureCollection(db, collectionId, name) {
+  try {
+    await db.getCollection({ databaseId: DATABASE_ID, collectionId });
+    return;
+  } catch {
+    await db.createCollection({
+      databaseId: DATABASE_ID,
+      collectionId,
+      name,
+      documentSecurity: true,
+      permissions: [
+        Permission.create(Role.users()),
+        Permission.read(Role.users()),
+        Permission.update(Role.users()),
+        Permission.delete(Role.users()),
+      ],
+    });
+    console.log(`  + created collection ${collectionId}`);
+    await sleep(1200);
+  }
+}
+
+function normalizeIndexes(indexAttributes) {
+  if (!indexAttributes) return [["userId"]];
+  if (typeof indexAttributes === "string") return [[indexAttributes]];
+  return indexAttributes.map((entry) => (Array.isArray(entry) ? entry : [entry]));
+}
+
+async function setupCollection(db, collectionId, setupFn, indexAttributes = ["userId"]) {
   console.log(`\n→ ${collectionId}`);
   await setupFn();
-  await ensureIndex(db, collectionId, "by_userId", ["userId"]);
+  for (const attrs of normalizeIndexes(indexAttributes)) {
+    const key = `by_${attrs.join("_")}`;
+    await ensureIndex(db, collectionId, key, attrs);
+  }
   await ensureCollectionPermissions(db, collectionId);
 }
 
@@ -196,6 +247,11 @@ async function main() {
   console.log("Setting up Habora Appwrite schema...");
   console.log(`Database: ${DATABASE_ID}`);
 
+  await ensureCollection(db, COLLECTIONS.workspaces, "Workspaces");
+  await ensureCollection(db, COLLECTIONS.workspace_members, "Workspace Members");
+  await ensureCollection(db, COLLECTIONS.workspace_activity, "Workspace Activity");
+  await ensureCollection(db, COLLECTIONS.workspace_tasks, "Workspace Tasks");
+
   await setupCollection(db, COLLECTIONS.tasks, async () => {
     await ensureString(db, COLLECTIONS.tasks, "userId", true);
     await ensureString(db, COLLECTIONS.tasks, "title", true);
@@ -207,7 +263,7 @@ async function main() {
     await ensureBoolean(db, COLLECTIONS.tasks, "completed", true, false);
     await ensureString(db, COLLECTIONS.tasks, "goalId", false);
     await ensureString(db, COLLECTIONS.tasks, "subtasks", false, 8192);
-  });
+  }, "userId");
 
   await setupCollection(db, COLLECTIONS.goals, async () => {
     await ensureString(db, COLLECTIONS.goals, "userId", true);
@@ -242,6 +298,45 @@ async function main() {
     await ensureInteger(db, COLLECTIONS.user_stats, "xp", true);
     await ensureInteger(db, COLLECTIONS.user_stats, "level", true);
   });
+
+  await setupCollection(db, COLLECTIONS.workspaces, async () => {
+    await ensureString(db, COLLECTIONS.workspaces, "ownerId", true);
+    await ensureString(db, COLLECTIONS.workspaces, "name", true);
+    await ensureString(db, COLLECTIONS.workspaces, "createdAt", true);
+  }, "ownerId");
+
+  await setupCollection(db, COLLECTIONS.workspace_members, async () => {
+    await ensureString(db, COLLECTIONS.workspace_members, "workspaceId", true);
+    await ensureString(db, COLLECTIONS.workspace_members, "memberUserId", false);
+    await ensureString(db, COLLECTIONS.workspace_members, "email", true);
+    await ensureString(db, COLLECTIONS.workspace_members, "name", true);
+    await ensureEnum(db, COLLECTIONS.workspace_members, "role", ["owner", "member"], true);
+    await ensureEnum(db, COLLECTIONS.workspace_members, "status", ["active", "invited"], true);
+  }, ["workspaceId", "memberUserId", "email"]);
+
+  await setupCollection(db, COLLECTIONS.workspace_activity, async () => {
+    await ensureString(db, COLLECTIONS.workspace_activity, "workspaceId", true);
+    await ensureString(db, COLLECTIONS.workspace_activity, "actorUserId", true);
+    await ensureString(db, COLLECTIONS.workspace_activity, "actorName", true);
+    await ensureString(db, COLLECTIONS.workspace_activity, "action", true, 2048);
+    await ensureEnum(
+      db,
+      COLLECTIONS.workspace_activity,
+      "activityType",
+      ["invite", "task_shared", "task_completed", "task_assigned"],
+      true,
+    );
+    await ensureString(db, COLLECTIONS.workspace_activity, "createdAt", true);
+  }, "workspaceId");
+
+  await setupCollection(db, COLLECTIONS.workspace_tasks, async () => {
+    await ensureString(db, COLLECTIONS.workspace_tasks, "workspaceId", true);
+    await ensureString(db, COLLECTIONS.workspace_tasks, "taskId", true);
+    await ensureString(db, COLLECTIONS.workspace_tasks, "sharedByUserId", true);
+    await ensureString(db, COLLECTIONS.workspace_tasks, "assigneeUserId", false);
+    await ensureString(db, COLLECTIONS.workspace_tasks, "assigneeName", false);
+    await ensureString(db, COLLECTIONS.workspace_tasks, "sharedAt", true);
+  }, ["workspaceId", "taskId"]);
 
   console.log("\n✅ Schema setup complete! Restart the app and log in again.\n");
 }

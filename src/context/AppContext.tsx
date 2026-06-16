@@ -35,7 +35,13 @@ import {
   requestPasswordRecovery,
   signupWithEmail,
 } from "@/services/appwrite-auth";
-import type { Goal, Note, Notification, Priority, Task, User } from "@/types";
+import {
+  fetchCollaborationData,
+  inviteWorkspaceMember,
+  logTaskCompletionActivity,
+  shareTaskToWorkspace,
+} from "@/services/appwrite-collaboration";
+import type { Goal, Note, Notification, Priority, SharedTask, Task, User, Workspace, WorkspaceActivity, WorkspaceMember } from "@/types";
 import type { GoalUpdate, NoteUpdate, TaskUpdate } from "@/services/appwrite-data";
 
 type AppState = {
@@ -74,6 +80,15 @@ type AppState = {
   markAllNotificationsRead: () => Promise<void>;
   refreshData: () => Promise<void>;
   saveFocusSession: (seconds: number) => Promise<void>;
+  workspace: Workspace | null;
+  workspaceMembers: WorkspaceMember[];
+  sharedTasks: SharedTask[];
+  sharedTaskIds: string[];
+  workspaceActivity: WorkspaceActivity[];
+  collaborationLoading: boolean;
+  refreshCollaboration: () => Promise<void>;
+  inviteMember: (email: string) => Promise<void>;
+  shareTask: (taskId: string, assigneeMemberId?: string) => Promise<void>;
 };
 
 const AppContext = createContext<AppState | null>(null);
@@ -104,6 +119,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [level, setLevel] = useState(1);
   const [authError, setAuthError] = useState<string | null>(null);
   const [schemaError, setSchemaError] = useState<string | null>(null);
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
+  const [sharedTasks, setSharedTasks] = useState<SharedTask[]>([]);
+  const [sharedTaskIds, setSharedTaskIds] = useState<string[]>([]);
+  const [workspaceActivity, setWorkspaceActivity] = useState<WorkspaceActivity[]>([]);
+  const [collaborationLoading, setCollaborationLoading] = useState(false);
 
   const isConfigured = isAppwriteConfigured();
 
@@ -136,10 +157,70 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const refreshCollaboration = useCallback(async () => {
+    if (!user) return;
+    setCollaborationLoading(true);
+    try {
+      const data = await fetchCollaborationData(user);
+      setWorkspace(data.workspace);
+      setWorkspaceMembers(data.members);
+      setSharedTasks(data.sharedTasks);
+      setSharedTaskIds(data.sharedTaskIds);
+      setWorkspaceActivity(data.activity);
+    } catch (error) {
+      const message = getAppwriteErrorMessage(error);
+      console.warn("Failed to load collaboration:", message);
+      if (isSchemaSetupError(message)) {
+        setSchemaError(getSchemaSetupMessage());
+      }
+    } finally {
+      setCollaborationLoading(false);
+    }
+  }, [user]);
+
+  const inviteMember = useCallback(
+    async (email: string) => {
+      if (!user || !workspace) {
+        throw new Error("Workspace not ready");
+      }
+      const member = await inviteWorkspaceMember(user, workspace, email, workspaceMembers);
+      setWorkspaceMembers((prev) => [...prev, member]);
+      await refreshCollaboration();
+    },
+    [user, workspace, workspaceMembers, refreshCollaboration],
+  );
+
+  const shareTask = useCallback(
+    async (taskId: string, assigneeMemberId?: string) => {
+      if (!user || !workspace) {
+        throw new Error("Workspace not ready");
+      }
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task) {
+        throw new Error("Task not found");
+      }
+      const assignee = assigneeMemberId
+        ? workspaceMembers.find((m) => m.id === assigneeMemberId)
+        : undefined;
+      const shared = await shareTaskToWorkspace(user, workspace, task, workspaceMembers, assignee);
+      setSharedTasks((prev) => [shared, ...prev]);
+      setSharedTaskIds((prev) => [...prev, taskId]);
+      await refreshCollaboration();
+    },
+    [user, workspace, tasks, workspaceMembers, refreshCollaboration],
+  );
+
   const refreshData = useCallback(async () => {
     if (!user) return;
     await loadUserData(user.id);
-  }, [user, loadUserData]);
+    await refreshCollaboration();
+  }, [user, loadUserData, refreshCollaboration]);
+
+  useEffect(() => {
+    if (user) {
+      void refreshCollaboration();
+    }
+  }, [user, refreshCollaboration]);
 
   useEffect(() => {
     async function init() {
@@ -233,6 +314,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setFocusStreak(0);
     setXp(0);
     setLevel(1);
+    setWorkspace(null);
+    setWorkspaceMembers([]);
+    setSharedTasks([]);
+    setSharedTaskIds([]);
+    setWorkspaceActivity([]);
   }, []);
 
   const completeOnboarding = useCallback(async () => {}, []);
@@ -245,15 +331,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTasks((prev) =>
       prev.map((t) => (t.id === id ? { ...t, completed: nextCompleted } : t)),
     );
+    setSharedTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, completed: nextCompleted } : t)),
+    );
 
     try {
       await updateTaskCompleted(id, nextCompleted);
+      if (nextCompleted && sharedTaskIds.includes(id) && workspace && user) {
+        await logTaskCompletionActivity(user, workspace.id, task.title);
+        await refreshCollaboration();
+      }
     } catch {
       setTasks((prev) =>
         prev.map((t) => (t.id === id ? { ...t, completed: task.completed } : t)),
       );
+      setSharedTasks((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, completed: task.completed } : t)),
+      );
     }
-  }, [tasks]);
+  }, [tasks, user, workspace, sharedTaskIds, refreshCollaboration]);
 
   const addTask = useCallback(
     async (task: Omit<Task, "id" | "completed">) => {
@@ -480,6 +576,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       markAllNotificationsRead,
       refreshData,
       saveFocusSession,
+      workspace,
+      workspaceMembers,
+      sharedTasks,
+      sharedTaskIds,
+      workspaceActivity,
+      collaborationLoading,
+      refreshCollaboration,
+      inviteMember,
+      shareTask,
     }),
     [
       isLoading,
@@ -517,6 +622,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       markAllNotificationsRead,
       refreshData,
       saveFocusSession,
+      workspace,
+      workspaceMembers,
+      sharedTasks,
+      sharedTaskIds,
+      workspaceActivity,
+      collaborationLoading,
+      refreshCollaboration,
+      inviteMember,
+      shareTask,
     ],
   );
 

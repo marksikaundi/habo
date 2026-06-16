@@ -40,7 +40,7 @@ This must match the deep link the app sends when requesting a password reset. Us
 Create a database in Appwrite Console (or use your existing database ID in `.env`).
 
 Create these **empty collections** (IDs must match `.env`):
-`tasks`, `goals`, `notes`, `notifications`, `user_stats`
+`tasks`, `goals`, `notes`, `notifications`, `user_stats`, `workspaces`, `workspace_members`, `workspace_activity`, `workspace_tasks`
 
 ### Automated schema setup (recommended)
 
@@ -71,9 +71,9 @@ This creates all attributes, indexes, and permissions automatically.
 | category | String | Yes | |
 | completed | Boolean | Yes | Default: `false` |
 | goalId | String | No | Linked goal document ID |
-| subtasks | String | No | JSON stringified array |
+| subtasks | String | No | JSON stringified array (optional — skip if at attribute limit) |
 
-**Indexes:** `userId` (key)
+**Indexes:** `userId`
 
 **Permissions:** Role `users` — Create, Read, Update, Delete
 
@@ -134,6 +134,57 @@ This creates all attributes, indexes, and permissions automatically.
 **Indexes:** `userId` (unique recommended)
 
 **Permissions:** Role `users` — Create, Read, Update, Delete
+
+### Collection: `workspaces`
+
+| Attribute | Type | Required |
+|-----------|------|----------|
+| ownerId | String | Yes |
+| name | String | Yes |
+| createdAt | String | Yes |
+
+**Indexes:** `ownerId`
+
+### Collection: `workspace_members`
+
+| Attribute | Type | Required |
+|-----------|------|----------|
+| workspaceId | String | Yes |
+| memberUserId | String | No |
+| email | String | Yes |
+| name | String | Yes |
+| role | Enum | Yes | `owner`, `member` |
+| status | Enum | Yes | `active`, `invited` |
+
+**Indexes:** `workspaceId`, `memberUserId`, `email`
+
+### Collection: `workspace_activity`
+
+| Attribute | Type | Required |
+|-----------|------|----------|
+| workspaceId | String | Yes |
+| actorUserId | String | Yes |
+| actorName | String | Yes |
+| action | String | Yes |
+| activityType | Enum | Yes | `invite`, `task_shared`, `task_completed`, `task_assigned` |
+| createdAt | String | Yes |
+
+**Indexes:** `workspaceId`
+
+### Collection: `workspace_tasks`
+
+Links personal tasks to a workspace without adding fields to `tasks` (avoids Appwrite attribute limits).
+
+| Attribute | Type | Required |
+|-----------|------|----------|
+| workspaceId | String | Yes |
+| taskId | String | Yes |
+| sharedByUserId | String | Yes |
+| assigneeUserId | String | No |
+| assigneeName | String | No |
+| sharedAt | String | Yes |
+
+**Indexes:** `workspaceId`, `taskId`
 
 ## 5. Configure the app
 

@@ -1,6 +1,6 @@
 import type { Models } from "react-native-appwrite";
 
-import type { Goal, Note, Notification, Priority, Task } from "@/types";
+import type { Goal, Note, Notification, Priority, Task, Workspace, WorkspaceActivity, WorkspaceMember } from "@/types";
 
 export type TaskDocument = Models.Document & {
   userId: string;
@@ -47,6 +47,39 @@ export type UserStatsDocument = Models.Document & {
   focusStreak: number;
   xp: number;
   level: number;
+};
+
+export type WorkspaceDocument = Models.Document & {
+  ownerId: string;
+  name: string;
+  createdAt: string;
+};
+
+export type WorkspaceMemberDocument = Models.Document & {
+  workspaceId: string;
+  memberUserId?: string;
+  email: string;
+  name: string;
+  role: WorkspaceMember["role"];
+  status: WorkspaceMember["status"];
+};
+
+export type WorkspaceActivityDocument = Models.Document & {
+  workspaceId: string;
+  actorUserId: string;
+  actorName: string;
+  action: string;
+  activityType: WorkspaceActivity["activityType"];
+  createdAt: string;
+};
+
+export type WorkspaceTaskLinkDocument = Models.Document & {
+  workspaceId: string;
+  taskId: string;
+  sharedByUserId: string;
+  assigneeUserId?: string;
+  assigneeName?: string;
+  sharedAt: string;
 };
 
 export function mapTaskDoc(doc: TaskDocument): Task {
@@ -103,6 +136,39 @@ export function mapNotificationDoc(doc: NotificationDocument): Notification {
     time: doc.time,
     group: doc.group,
     read: doc.read,
+  };
+}
+
+export function mapWorkspaceDoc(doc: WorkspaceDocument): Workspace {
+  return {
+    id: doc.$id,
+    ownerId: doc.ownerId,
+    name: doc.name,
+    createdAt: doc.createdAt,
+  };
+}
+
+export function mapWorkspaceMemberDoc(doc: WorkspaceMemberDocument): WorkspaceMember {
+  return {
+    id: doc.$id,
+    workspaceId: doc.workspaceId,
+    userId: doc.memberUserId,
+    email: doc.email,
+    name: doc.name,
+    role: doc.role,
+    status: doc.status,
+  };
+}
+
+export function mapWorkspaceActivityDoc(doc: WorkspaceActivityDocument): WorkspaceActivity {
+  return {
+    id: doc.$id,
+    workspaceId: doc.workspaceId,
+    actorUserId: doc.actorUserId,
+    actorName: doc.actorName,
+    action: doc.action,
+    activityType: doc.activityType,
+    createdAt: doc.createdAt,
   };
 }
 

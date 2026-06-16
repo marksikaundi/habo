@@ -37,6 +37,22 @@ export const appwriteConfig = {
       process.env.EXPO_PUBLIC_APPWRITE_COLLECTION_USER_STATS ??
       (extra.appwriteCollectionUserStats as string | undefined) ??
       "user_stats",
+    workspaces:
+      process.env.EXPO_PUBLIC_APPWRITE_COLLECTION_WORKSPACES ??
+      (extra.appwriteCollectionWorkspaces as string | undefined) ??
+      "workspaces",
+    workspaceMembers:
+      process.env.EXPO_PUBLIC_APPWRITE_COLLECTION_WORKSPACE_MEMBERS ??
+      (extra.appwriteCollectionWorkspaceMembers as string | undefined) ??
+      "workspace_members",
+    workspaceActivity:
+      process.env.EXPO_PUBLIC_APPWRITE_COLLECTION_WORKSPACE_ACTIVITY ??
+      (extra.appwriteCollectionWorkspaceActivity as string | undefined) ??
+      "workspace_activity",
+    workspaceTasks:
+      process.env.EXPO_PUBLIC_APPWRITE_COLLECTION_WORKSPACE_TASKS ??
+      (extra.appwriteCollectionWorkspaceTasks as string | undefined) ??
+      "workspace_tasks",
   },
   platform:
     process.env.EXPO_PUBLIC_APPWRITE_PLATFORM ??
