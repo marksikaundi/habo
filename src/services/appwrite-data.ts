@@ -14,7 +14,9 @@ import {
   type TaskDocument,
   type UserStatsDocument,
 } from "@/lib/appwrite-mappers";
+import type { NotificationDraft } from "@/lib/notification-helpers";
 import { userDocumentPermissions } from "@/services/appwrite-auth";
+import { buildNotificationsFromState } from "@/services/notification-sync";
 import type { Goal, Note, Notification, Task } from "@/types";
 
 const { databaseId, collections } = appwriteConfig;
@@ -282,6 +284,47 @@ export async function deleteNote(noteId: string): Promise<void> {
     collectionId: collections.notes,
     documentId: noteId,
   });
+}
+
+export async function createNotification(
+  userId: string,
+  notification: NotificationDraft,
+): Promise<Notification> {
+  const doc = await databases.createDocument<NotificationDocument>({
+    databaseId,
+    collectionId: collections.notifications,
+    documentId: ID.unique(),
+    data: {
+      userId,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      time: notification.time,
+      group: notification.group,
+      read: false,
+    },
+    permissions: userDocumentPermissions(userId),
+  });
+  return mapNotificationDoc(doc);
+}
+
+export async function syncNotifications(
+  userId: string,
+  tasks: Task[],
+  goals: Goal[],
+  stats: UserStats,
+  existing: Notification[],
+): Promise<Notification[]> {
+  const drafts = buildNotificationsFromState(tasks, goals, stats, existing);
+  if (drafts.length === 0) {
+    return existing;
+  }
+
+  const created = await Promise.all(
+    drafts.map((draft) => createNotification(userId, draft)),
+  );
+
+  return [...created, ...existing];
 }
 
 export async function markNotificationAsRead(notificationId: string): Promise<void> {

@@ -19,7 +19,9 @@ import {
   deleteTask as deleteTaskDoc,
   fetchUserData,
   addFocusMinutes,
+  createNotification,
   markNotificationAsRead as markNotificationReadDoc,
+  syncNotifications,
   updateGoal as updateGoalDoc,
   updateNote as updateNoteDoc,
   updateTask as updateTaskDoc,
@@ -41,6 +43,7 @@ import {
   logTaskCompletionActivity,
   shareTaskToWorkspace,
 } from "@/services/appwrite-collaboration";
+import { buildFocusSessionNotification } from "@/services/notification-sync";
 import type { Goal, Note, Notification, Priority, SharedTask, Task, User, Workspace, WorkspaceActivity, WorkspaceMember } from "@/types";
 import type { GoalUpdate, NoteUpdate, TaskUpdate } from "@/services/appwrite-data";
 
@@ -139,11 +142,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setTasks(data.tasks);
       setGoals(data.goals);
       setNotes(data.notes);
-      setNotifications(data.notifications);
       applyStats(
         { setFocusMinutesToday, setFocusStreak, setXp, setLevel },
         data.stats,
       );
+
+      try {
+        const synced = await syncNotifications(
+          userId,
+          data.tasks,
+          data.goals,
+          data.stats,
+          data.notifications,
+        );
+        setNotifications(synced);
+      } catch (syncError) {
+        console.warn("Failed to sync notifications:", getAppwriteErrorMessage(syncError));
+        setNotifications(data.notifications);
+      }
     } catch (error) {
       const message = getAppwriteErrorMessage(error);
       console.warn("Failed to load user data:", message);
@@ -209,6 +225,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     [user, workspace, tasks, workspaceMembers, refreshCollaboration],
   );
+
+  const refreshNotifications = useCallback(async () => {
+    if (!user) return;
+
+    const stats: UserStats = {
+      focusMinutesToday,
+      focusStreak,
+      xp,
+      level,
+    };
+
+    try {
+      const synced = await syncNotifications(user.id, tasks, goals, stats, notifications);
+      setNotifications(synced);
+    } catch (error) {
+      console.warn("Failed to refresh notifications:", getAppwriteErrorMessage(error));
+    }
+  }, [user, tasks, goals, notifications, focusMinutesToday, focusStreak, xp, level]);
 
   const refreshData = useCallback(async () => {
     if (!user) return;
@@ -341,6 +375,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await logTaskCompletionActivity(user, workspace.id, task.title);
         await refreshCollaboration();
       }
+      await refreshNotifications();
     } catch {
       setTasks((prev) =>
         prev.map((t) => (t.id === id ? { ...t, completed: task.completed } : t)),
@@ -349,15 +384,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         prev.map((t) => (t.id === id ? { ...t, completed: task.completed } : t)),
       );
     }
-  }, [tasks, user, workspace, sharedTaskIds, refreshCollaboration]);
+  }, [tasks, user, workspace, sharedTaskIds, refreshCollaboration, refreshNotifications]);
 
   const addTask = useCallback(
     async (task: Omit<Task, "id" | "completed">) => {
       if (!user) return;
       const created = await createTaskDoc(user.id, task);
       setTasks((prev) => [created, ...prev]);
+      await refreshNotifications();
     },
-    [user],
+    [user, refreshNotifications],
   );
 
   const updateTask = useCallback(
@@ -421,6 +457,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       try {
         await updateGoalDoc(id, updates);
+        await refreshNotifications();
       } catch {
         setGoals((prev) =>
           prev.map((g) => (g.id === id ? previous : g)),
@@ -428,7 +465,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         throw new Error("Failed to update goal");
       }
     },
-    [goals],
+    [goals, refreshNotifications],
   );
 
   const deleteGoal = useCallback(
@@ -532,6 +569,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const updated = await addFocusMinutes(user.id, seconds);
         setFocusMinutesToday(updated.focusMinutesToday);
         setXp(updated.xp);
+
+        const minutes = Math.max(1, Math.round(seconds / 60));
+        const draft = buildFocusSessionNotification(minutes);
+        const created = await createNotification(user.id, draft);
+        setNotifications((prev) => [created, ...prev]);
       } catch (error) {
         console.warn("Failed to save focus session:", getAppwriteErrorMessage(error));
       }
