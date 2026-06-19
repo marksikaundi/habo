@@ -1,9 +1,21 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs, router } from "expo-router";
-import { View } from "react-native";
+import { Pressable, View, type PressableProps } from "react-native";
 
 import { FAB } from "@/components/Button";
 import { Colors } from "@/constants/theme";
+
+type TabBarButtonProps = PressableProps & {
+  children: React.ReactNode;
+};
+
+function TabBarButton({ style, children, ...rest }: TabBarButtonProps) {
+  return (
+    <Pressable {...rest} android_ripple={null} style={style}>
+      {children}
+    </Pressable>
+  );
+}
 
 export default function TabsLayout() {
   return (
@@ -13,12 +25,21 @@ export default function TabsLayout() {
           headerShown: false,
           tabBarActiveTintColor: Colors.primary,
           tabBarInactiveTintColor: Colors.tabInactive,
+          tabBarActiveBackgroundColor: "transparent",
+          tabBarInactiveBackgroundColor: "transparent",
+          tabBarButton: (props) => <TabBarButton {...props} />,
           tabBarStyle: {
             backgroundColor: Colors.surface,
             borderTopColor: Colors.border,
+            borderTopWidth: 1,
             height: 84,
             paddingBottom: 28,
             paddingTop: 8,
+            shadowColor: "transparent",
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0,
+            shadowRadius: 0,
+            elevation: 0,
           },
           tabBarLabelStyle: {
             fontSize: 11,

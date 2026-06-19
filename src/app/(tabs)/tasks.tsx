@@ -163,6 +163,7 @@ export default function TasksScreen() {
         {TABS.map((tab) => (
           <Pressable
             key={tab}
+            android_ripple={null}
             onPress={() => setActiveTab(tab)}
             style={[styles.tab, activeTab === tab && styles.tabActive]}
           >
